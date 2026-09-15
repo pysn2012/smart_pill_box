@@ -156,13 +156,15 @@ interval:
 
 # 脚本（Scripts）
 script:
-  # 扫描调度：按 HA 里选择的模式分发
+  # 扫描调度：按 HA 里选择的模式分发（select.is 条件，官方文档写法）
   - id: med_scan
     mode: single
     then:
       - if:
           condition:
-            lambda: return id(med_mode).state == "日模式";
+            select.is:
+              id: med_mode
+              options: "日模式"
           then:
             - script.execute: med_scan_day
           else:
