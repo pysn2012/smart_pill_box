@@ -1,0 +1,171 @@
+esp32:
+  variant: esp32s3
+  flash_size: 8MB
+  cpu_frequency: 240MHz
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+# I2C 总线（OLED: SCL=14, SDA=13）
+i2c:
+  - id: i2c_bus
+    scl: GPIO14
+    sda: GPIO13
+
+# I2S 音频总线
+i2s_audio:
+  # INMP441: SCK=16, WS=17（SD 在语音模块里=GPIO18）
+  - id: i2s_mic
+    i2s_lrclk_pin: GPIO17
+    i2s_bclk_pin: GPIO16
+  # MAX98357A: BCLK=41, LRC=42（DIN 在语音模块里=GPIO15）
+  - id: i2s_out_bus
+    i2s_lrclk_pin: GPIO42
+    i2s_bclk_pin: GPIO41
+
+# 颜色定义 (Colors): 将HEX颜色值定义为ID，方便在显示逻辑中引用
+color:
+  - id: bg_color
+    hex: ${bg_color}
+  - id: text_color
+    hex: ${text_color}
+
+# 显示屏 (Display): OLED
+display:
+  - platform: ssd1306_i2c
+    id: oled128
+    model: "SSD1306 128x64"
+    i2c_id: i2c_bus
+    address: 0x3C
+    update_interval: never
+    # 定义了多个显示页面，每个页面是一个独立的绘制函数
+    pages:
+      # 空闲页面
+      - id: idle_page
+        lambda: |-
+          it.fill(id(bg_color));
+          it.printf(30, 20, id(font_main), id(text_color), "%s", "待机状态");
+      # 监听页面
+      - id: listening_page
+        lambda: |-
+          it.fill(id(bg_color));
+          it.printf(30, 20, id(font_main), id(text_color), "%s", "聆听状态");
+      # 思考页面
+      - id: thinking_page
+        lambda: |-
+          it.fill(id(bg_color));
+          it.printf(0, 0, id(font_main), id(text_color), "%s", "思考:");
+          const int start_y = 16;
+          const int line_height = 12;
+          const int max_width = 128;
+          std::string text = id(text_request).state.c_str();
+          int y = start_y;
+          std::string line;
+          for (size_t i = 0; i < text.size() && y < 64;) {
+            uint8_t c = text[i];
+            int len =
+              (c & 0x80) == 0x00 ? 1 :
+              (c & 0xE0) == 0xC0 ? 2 :
+              (c & 0xF0) == 0xE0 ? 3 : 4;
+            std::string next = line + text.substr(i, len);
+            int x1, y1, w, h;
+            it.get_text_bounds(
+              0, y,
+              next.c_str(),
+              id(font_small),
+              esphome::display::TextAlign::TOP_LEFT,
+              &x1, &y1, &w, &h
+            );
+            if (w > max_width) {
+              it.printf(0, y, id(font_small), id(text_color), "%s", line.c_str());
+              y += line_height;
+              line.clear();
+            } else {
+              line = next;
+              i += len;
+            }
+          }
+          if (!line.empty() && y < 64) {
+            it.printf(0, y, id(font_small), id(text_color), "%s", line.c_str());
+          }
+      # 回复页面
+      - id: replying_page
+        lambda: |-
+          it.fill(id(bg_color));
+          it.printf(0, 0, id(font_main), id(text_color), "%s", "回复:");
+          const int start_y = 16;
+          const int line_height = 12;
+          const int max_width = 128;
+          std::string text = id(text_response).state.c_str();
+          int y = start_y;
+          std::string line;
+          for (size_t i = 0; i < text.size() && y < 64;) {
+            uint8_t c = text[i];
+            int len =
+              (c & 0x80) == 0x00 ? 1 :
+              (c & 0xE0) == 0xC0 ? 2 :
+              (c & 0xF0) == 0xE0 ? 3 : 4;
+            std::string next = line + text.substr(i, len);
+            int x1, y1, w, h;
+            it.get_text_bounds(
+              0, y,
+              next.c_str(),
+              id(font_small),
+              esphome::display::TextAlign::TOP_LEFT,
+              &x1, &y1, &w, &h
+            );
+            if (w > max_width) {
+              it.printf(0, y, id(font_small), id(text_color), "%s", line.c_str());
+              y += line_height;
+              line.clear();
+            } else {
+              line = next;
+              i += len;
+            }
+          }
+          if (!line.empty() && y < 64) {
+            it.printf(0, y, id(font_small), id(text_color), "%s", line.c_str());
+          }
+      # 错误页面
+      - id: error_page
+        lambda: |-
+          it.fill(id(bg_color));
+          it.printf(25, 20, id(font_main), id(text_color), "%s", "呃,出错了");
+      # 无Home Assistant页面
+      - id: no_ha_page
+        lambda: |-
+          it.fill(id(bg_color));
+          it.printf(25, 20, id(font_main), id(text_color), "%s", "未连接HA");
+      # 无WiFi页面
+      - id: no_wifi_page
+        lambda: |-
+          it.fill(id(bg_color));
+          it.printf(25, 20, id(font_main), id(text_color), "%s", "未连接wifi");
+      # 初始化页面
+      - id: initializing_page
+        lambda: |-
+          it.fill(id(bg_color));
+          it.printf(35, 20, id(font_main), id(text_color), "%s", "加载中");
+      # 静音页面
+      - id: muted_page
+        lambda: |-
+          it.fill(id(bg_color));
+          it.printf(35, 20, id(font_main), id(text_color), "%s", "静音状态");
+      # 吃药提醒页面（红灯状态下显示）
+      - id: med_alarm_page
+        lambda: |-
+          it.fill(id(bg_color));
+          it.printf(64, 10, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "该吃药了");
+          it.printf(64, 32, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "第%d格", (int) id(med_active_slot) + 1);
+      # 已吃药页面（打卡后绿灯期间显示）
+      - id: med_ok_page
+        lambda: |-
+          it.fill(id(bg_color));
+          it.printf(64, 20, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "已吃药");

@@ -1,0 +1,145 @@
+# ============================================================
+# 吃药打卡 - 日模式：每日多次吃药
+# 格子分配：第1次 → 格0 ... 第N次 → 格N-1（最多 ${med_slots} 格）
+# 用法：与 medicine-common.yaml 一起启用；
+#       在 HA 设备页用"吃药模式"选择器切换到"日模式"
+#
+# 吃药次数与时间均在 Home Assistant 设备实体里设置，
+# 时间保存在设备本地（restore_value），重启不丢。
+# 注意：周模式下"第1~8次吃药时间"和"每日吃药次数"不参与逻辑，
+#       只需设置日模式用到的部分。
+# ============================================================
+
+number:
+  # 每日吃药次数（1~8），使用前 N 个时间实体
+  - platform: template
+    name: 每日吃药次数
+    id: med_doses_per_day
+    icon: mdi:pill-multiple
+    min_value: 1
+    max_value: 8
+    step: 1
+    initial_value: 3
+    optimistic: true
+    restore_value: true
+
+# 每天各次吃药时间（在 HA 里设置）
+datetime:
+  - platform: template
+    type: TIME
+    id: med_time_1
+    name: 第1次吃药时间
+    time_id: ha_time
+    optimistic: true
+    restore_value: true
+    initial_value: "08:00:00"
+  - platform: template
+    type: TIME
+    id: med_time_2
+    name: 第2次吃药时间
+    time_id: ha_time
+    optimistic: true
+    restore_value: true
+    initial_value: "12:00:00"
+  - platform: template
+    type: TIME
+    id: med_time_3
+    name: 第3次吃药时间
+    time_id: ha_time
+    optimistic: true
+    restore_value: true
+    initial_value: "18:00:00"
+  - platform: template
+    type: TIME
+    id: med_time_4
+    name: 第4次吃药时间
+    time_id: ha_time
+    optimistic: true
+    restore_value: true
+    initial_value: "23:59:00"
+  - platform: template
+    type: TIME
+    id: med_time_5
+    name: 第5次吃药时间
+    time_id: ha_time
+    optimistic: true
+    restore_value: true
+    initial_value: "23:59:00"
+  - platform: template
+    type: TIME
+    id: med_time_6
+    name: 第6次吃药时间
+    time_id: ha_time
+    optimistic: true
+    restore_value: true
+    initial_value: "23:59:00"
+  - platform: template
+    type: TIME
+    id: med_time_7
+    name: 第7次吃药时间
+    time_id: ha_time
+    optimistic: true
+    restore_value: true
+    initial_value: "23:59:00"
+  - platform: template
+    type: TIME
+    id: med_time_8
+    name: 第8次吃药时间
+    time_id: ha_time
+    optimistic: true
+    restore_value: true
+    initial_value: "23:59:00"
+
+script:
+  - id: med_scan_day
+    mode: single
+    then:
+      - lambda: |-
+          auto now = id(ha_time).now();
+          id(med_due_flag) = false;
+          id(med_rollover_flag) = false;
+          if (!now.is_valid())
+            return;
+          // 跨天：清空打卡记录
+          if (id(med_last_day) != now.day_of_year) {
+            id(med_last_day) = now.day_of_year;
+            id(med_taken_mask) = 0;
+            id(med_rollover_flag) = true;
+          }
+          int nowm = now.hour * 60 + now.minute;
+          int nd = (int) id(med_doses_per_day).state;
+          if (nd < 1) nd = 1;
+          if (nd > ${med_slots}) nd = ${med_slots};
+          int starts[${med_slots}] = {
+            id(med_time_1).hour * 60 + id(med_time_1).minute,
+            id(med_time_2).hour * 60 + id(med_time_2).minute,
+            id(med_time_3).hour * 60 + id(med_time_3).minute,
+            id(med_time_4).hour * 60 + id(med_time_4).minute,
+            id(med_time_5).hour * 60 + id(med_time_5).minute,
+            id(med_time_6).hour * 60 + id(med_time_6).minute,
+            id(med_time_7).hour * 60 + id(med_time_7).minute,
+            id(med_time_8).hour * 60 + id(med_time_8).minute
+          };
+          // 找第一个"已到点且未打卡"的次数
+          int due_slot = -1;
+          for (int i = 0; i < nd; i++) {
+            if (id(med_taken_mask) & (1 << i))
+              continue;
+            if (nowm >= starts[i]) {
+              due_slot = i;
+              break;
+            }
+          }
+          id(med_target_slot) = due_slot;
+          // 仅当提醒状态发生变化时才触发（避免每30秒重复动作）
+          id(med_due_flag) = (due_slot >= 0) && !(id(med_show_alarm) && id(med_active_slot) == due_slot);
+      - if:
+          condition:
+            lambda: return id(med_rollover_flag);
+          then:
+            - script.execute: med_alarm_off
+      - if:
+          condition:
+            lambda: return id(med_due_flag);
+          then:
+            - script.execute: med_alarm_on

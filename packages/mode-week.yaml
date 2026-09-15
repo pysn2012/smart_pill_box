@@ -1,0 +1,57 @@
+# ============================================================
+# 吃药打卡 - 周模式：每天只吃 1 次，每天时间相同
+# 格子分配：周一→格0，周二→格1 ... 周日→格6（格7 备用）
+# 用法：与 medicine-common.yaml 一起启用；
+#       在 HA 设备页用"吃药模式"选择器切换到"周模式"
+#
+# 注意：日模式下"每天吃药时间"不参与逻辑，只需在周模式下设置。
+# day_of_week: 周日=1 ... 周六=7，换算 (day_of_week+5)%7 → 周一=0 ... 周日=6
+# ============================================================
+
+# 每天吃药时间（每天都一样，在 HA 里设置，本地保存）
+datetime:
+  - platform: template
+    type: TIME
+    id: med_week_time
+    name: 每天吃药时间
+    time_id: ha_time
+    optimistic: true
+    restore_value: true
+    initial_value: "08:00:00"
+
+script:
+  - id: med_scan_week
+    mode: single
+    then:
+      - lambda: |-
+          auto now = id(ha_time).now();
+          id(med_due_flag) = false;
+          id(med_rollover_flag) = false;
+          if (!now.is_valid())
+            return;
+          // 跨天：清空打卡记录
+          if (id(med_last_day) != now.day_of_year) {
+            id(med_last_day) = now.day_of_year;
+            id(med_taken_mask) = 0;
+            id(med_rollover_flag) = true;
+          }
+          int nowm = now.hour * 60 + now.minute;
+          // day_of_week: 1=周日 ... 7=周六 → 换算为 周一=0 ... 周日=6
+          int slot = (now.day_of_week + 5) % 7;
+          int start = id(med_week_time).hour * 60 + id(med_week_time).minute;
+          int due_slot = -1;
+          if (!(id(med_taken_mask) & (1 << slot)) && nowm >= start)
+            due_slot = slot;
+          id(med_target_slot) = due_slot;
+          // 仅当提醒状态发生变化时才触发（避免每30秒重复动作）
+          id(med_due_flag) = (due_slot >= 0) && !(id(med_show_alarm) && id(med_active_slot) == due_slot);
+      - if:
+          condition:
+            lambda: return id(med_rollover_flag);
+          then:
+            - script.execute: med_alarm_off
+      - if:
+          condition:
+            lambda: return id(med_due_flag);
+          then:
+            - script.execute: med_alarm_on

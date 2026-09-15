@@ -1,0 +1,46 @@
+# 按钮：GPIO0 BOOT按键，长按10秒触发恢复出厂设置
+button:
+  - platform: factory_reset
+    id: factory_reset_btn
+    internal: true
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: true
+    id: boot_button
+    internal: true
+    on_multi_click:
+      - timing:
+          - ON for at least 10s
+        then:
+          - button.press: factory_reset_btn
+
+# 文本传感器 (Text Sensors): 用于在UI中显示请求和回复的文本
+text_sensor:
+  - id: text_request
+    platform: template
+
+  - id: text_response
+    platform: template
+
+  # WiFi IP 地址
+  - platform: wifi_info
+    ip_address:
+      id: wifi_ip
+      name: "IP地址"
+
+sensor:
+  # WiFi 信号强度
+  - platform: wifi_signal
+    id: wifi_rssi
+    name: "WiFi信号"
+    update_interval: 60s
+
+  # 设备运行时间
+  - platform: uptime
+    id: device_uptime
+    name: "运行时间S"
+    update_interval: 60s

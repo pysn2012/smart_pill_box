@@ -1,0 +1,251 @@
+# ============================================================
+# 吃药打卡 - 公共模块（模式选择 / LED / 打卡按键 / 步进电机 / 状态脚本）
+# 与 mode-day.yaml 和 mode-week.yaml 搭配使用（两个都启用，
+# 在 HA 设备页用"吃药模式"选择器切换）
+#
+# 逻辑约定：
+#   - 格子编号从 0 开始（0~7），对外显示为"第1格~第8格"
+#   - 到点 → 红灯 + OLED"该吃药了" + 电机转到对应格
+#   - 过了时间段没打卡 → 红灯和提醒一直保持，直到打卡为止
+#   - 按键打卡 → 红灯灭、绿灯亮、OLED"已吃药"，${med_green_time} 后全部关闭
+#   - 是否吃药以按键打卡为准；跨天自动清空当天打卡记录
+# ============================================================
+
+# 红灯：到点提醒 / 绿灯：已吃药
+output:
+  - platform: gpio
+    id: med_red
+    pin: GPIO1
+  - platform: gpio
+    id: med_green
+    pin: GPIO2
+
+# 步进电机（TMC2209 STEP/DIR 接法，兼容 a4988 平台）
+# 官方文档：TMC 驱动没有 SLEEP 脚，对应的是 ENABLE 脚（低电平使能），
+# 因此 sleep_pin 需要 inverted: true；到达目标位置后驱动自动休眠（EN=高，断电）
+# 若实际转向相反，给 dir_pin 加 inverted: true
+stepper:
+  - platform: a4988
+    id: med_stepper
+    step_pin: GPIO39
+    dir_pin: GPIO40
+    sleep_pin:
+      number: GPIO38
+      inverted: true
+    max_speed: 250 steps/s
+    acceleration: 400 steps/s^2
+    deceleration: 400 steps/s^2
+
+# 吃药模式选择（HA 设备页设置，断电保存）
+select:
+  - platform: template
+    id: med_mode
+    name: 吃药模式
+    icon: mdi:calendar-clock
+    optimistic: true
+    restore_value: true
+    initial_option: 日模式
+    options:
+      - 日模式
+      - 周模式
+    on_value:
+      then:
+        # 切换模式时清掉当前提醒，下个扫描周期按新模式重新判断
+        - script.execute: med_alarm_off
+        - output.turn_off: med_green
+
+# 吃药时间段（分钟），默认30，两种模式共用
+number:
+  - platform: template
+    name: 吃药时间段(分钟)
+    id: med_window_min
+    icon: mdi:timer-outline
+    min_value: 5
+    max_value: 240
+    step: 5
+    initial_value: 30
+    optimistic: true
+    restore_value: true
+
+# 全局变量（Globals）
+globals:
+  # 是否处于吃药提醒状态（红灯）
+  - id: med_show_alarm
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  # 打卡后是否处于"已吃药"显示状态（绿灯）
+  - id: med_show_taken
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  # 打卡位图：bit i = 第 i 格（第 i 次）已吃药
+  - id: med_taken_mask
+    type: int
+    restore_value: true
+    initial_value: "0"
+  # 当前提醒对应的格子（-1 = 无）
+  - id: med_active_slot
+    type: int
+    restore_value: false
+    initial_value: "-1"
+  # 扫描后计算出的待提醒格子（-1 = 无），供 med_alarm_on 使用
+  - id: med_target_slot
+    type: int
+    restore_value: false
+    initial_value: "-1"
+  # 扫描结果标志（由模式模块的扫描脚本设置）
+  - id: med_due_flag
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: med_rollover_flag
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  # 电机当前所在格（0 起，开机假定停在格 0）
+  - id: med_current_slot
+    type: int
+    restore_value: false
+    initial_value: "0"
+  # 电机累计步数镜像（与驱动内部位置同步，用于绝对定位）
+  - id: med_steps_pos
+    type: int
+    restore_value: false
+    initial_value: "0"
+  # 上次扫描时的 day_of_year（用于跨天重置打卡记录）
+  - id: med_last_day
+    type: int
+    restore_value: false
+    initial_value: "-1"
+
+# 打卡按键（GPIO10，低电平按下）
+binary_sensor:
+  - platform: gpio
+    id: med_button
+    name: 吃药打卡
+    pin:
+      number: GPIO10
+      mode: INPUT_PULLUP
+      inverted: true
+    filters:
+      - delayed_on: 20ms
+    on_press:
+      - script.execute: med_taken_seq
+
+# 状态上报（Text Sensor / Sensor）
+text_sensor:
+  - platform: template
+    id: med_status
+    name: 吃药状态
+    icon: mdi:pill
+
+sensor:
+  - platform: template
+    id: med_slot_sensor
+    name: 当前药格
+    icon: mdi:rotate-360
+    accuracy_decimals: 0
+    update_interval: never
+
+# 每 30 秒扫描一次当前模式的吃药时间表
+interval:
+  - interval: 30s
+    then:
+      - script.execute: med_scan
+
+# 脚本（Scripts）
+script:
+  # 扫描调度：按 HA 里选择的模式分发
+  - id: med_scan
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: return id(med_mode).state == "日模式";
+          then:
+            - script.execute: med_scan_day
+          else:
+            - script.execute: med_scan_week
+
+  # 开机初始化：关灯
+  - id: med_init
+    mode: single
+    then:
+      - output.turn_off: med_red
+      - output.turn_off: med_green
+
+  # 电机转到指定格（走最短路径，正转/反转自动选择）
+  - id: med_go_to_slot
+    mode: single
+    parameters:
+      target_slot: int
+    then:
+      - lambda: |-
+          int delta = ((target_slot - id(med_current_slot)) % ${med_slots} + ${med_slots}) % ${med_slots};
+          if (delta > ${med_slots} / 2)
+            delta -= ${med_slots};
+          id(med_steps_pos) += delta * ${med_steps_per_slot};
+          id(med_current_slot) = target_slot;
+          id(med_slot_sensor).publish_state((float) id(med_current_slot));
+      - stepper.set_target:
+          id: med_stepper
+          target: !lambda return id(med_steps_pos);
+
+  # 进入提醒状态：红灯 + OLED 提醒 + 电机转到对应格
+  - id: med_alarm_on
+    mode: single
+    then:
+      - lambda: |-
+          id(med_show_alarm) = true;
+          id(med_show_taken) = false;
+          id(med_active_slot) = id(med_target_slot);
+      - script.execute:
+          id: med_go_to_slot
+          target_slot: !lambda return id(med_active_slot);
+      - output.turn_on: med_red
+      - script.execute: med_publish_status
+      - script.execute: draw_display
+
+  # 退出提醒状态（所有到期次数已打卡 / 跨天重置 / 切换模式）
+  - id: med_alarm_off
+    mode: single
+    then:
+      - lambda: id(med_show_alarm) = false;
+      - output.turn_off: med_red
+      - script.execute: med_publish_status
+      - script.execute: draw_display
+
+  # 按键打卡：红灯灭 → 绿灯 + OLED"已吃药"，${med_green_time} 后全部关闭
+  - id: med_taken_seq
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: return id(med_show_alarm) || id(med_show_taken);
+          then:
+            - lambda: |-
+                if (id(med_show_alarm) && id(med_active_slot) >= 0)
+                  id(med_taken_mask) |= (1 << id(med_active_slot));
+                id(med_show_alarm) = false;
+                id(med_show_taken) = true;
+            - output.turn_off: med_red
+            - output.turn_on: med_green
+            - script.execute: med_publish_status
+            - script.execute: draw_display
+            - delay: ${med_green_time}
+            - output.turn_off: med_green
+            - lambda: id(med_show_taken) = false;
+            - script.execute: draw_display
+
+  # 发布吃药状态到 HA
+  - id: med_publish_status
+    mode: single
+    then:
+      - lambda: |-
+          if (id(med_show_alarm))
+            id(med_status).publish_state("该吃药 第" + std::to_string(id(med_active_slot) + 1) + "格");
+          else if (id(med_show_taken))
+            id(med_status).publish_state("已吃药");
+          else
+            id(med_status).publish_state("空闲");

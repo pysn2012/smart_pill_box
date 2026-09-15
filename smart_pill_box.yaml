@@ -1,0 +1,92 @@
+---
+# ============================================================
+# 立创 ESP32-S3 语音助手 + 智能药盒（按时吃药打卡）
+# 吃药模式：编译后无需改配置，在 Home Assistant 设备页
+#           用"吃药模式"选择器切换 日模式 / 周模式
+# ============================================================
+
+substitutions:
+  name: pill_box
+  friendly_name: pill_box
+
+  # 语音助手不同阶段的ID，用于内部逻辑判断和显示切换
+  voice_assist_idle_phase_id: "1"
+  voice_assist_listening_phase_id: "2"
+  voice_assist_thinking_phase_id: "3"
+  voice_assist_replying_phase_id: "4"
+  voice_assist_not_ready_phase_id: "10"
+  voice_assist_error_phase_id: "11"
+  voice_assist_muted_phase_id: "12"
+
+  # 仅有2种颜色
+  bg_color: "000000"    # 黑色背景
+  text_color: "FFFFFF"  # 白色文字
+
+  # ---- 药盒参数 ----
+  # 药盒格数（圆形药盒 8 格）
+  med_slots: "8"
+  # 每格步数：42 步进电机 1.8° → 200 步/圈 → 全步 200/8=25 步/格
+  # 注意：TMC2209 的 MS1/MS2 悬空时默认 1/8 细分 → 1600 步/圈 → 每格 200 步
+  # 若实际转到位置不对，按 (200 × 细分) / 8 修改此值
+  med_steps_per_slot: "200"
+  # 打卡后绿灯 + OLED"已吃药"的显示时长，之后关闭所有提醒
+  med_green_time: "10s"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  min_version: 2025.12.0  # 要求的最低ESPHome版本
+  name_add_mac_suffix: true  # 设备名后缀添加MAC地址，避免冲突
+  on_boot:  # 开机启动逻辑
+    priority: 600
+    then:
+      - script.execute: med_init           # 关灯
+      - script.execute: med_publish_status # 发布吃药状态
+      - script.execute: draw_display
+      - delay: 30s
+      - if:
+          condition:
+            lambda: return id(init_in_progress);
+          then:
+            - lambda: id(init_in_progress) = false;
+            - script.execute: draw_display
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+api:
+  on_client_connected:
+    - script.execute: draw_display
+  on_client_disconnected:
+    - script.execute: draw_display
+
+ota:
+  - platform: esphome
+    id: ota_esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "pillbox-ap-Setup"
+    password: "12345678"
+  on_connect:
+    - delay: 5s
+    - script.execute: draw_display
+  on_disconnect:
+    - script.execute: draw_display
+
+captive_portal:
+
+packages:
+  hardware: !include packages/hardware.yaml
+  time: !include packages/time.yaml
+  fonts: !include packages/fonts.yaml
+  sensor: !include packages/sensor.yaml
+  script: !include packages/script.yaml
+  voice: !include packages/voice-assistant.yaml
+  # ---- 吃药打卡公共模块（模式选择/LED/按键/步进电机/状态脚本）----
+  medicine_common: !include packages/medicine-common.yaml
+  # ---- 吃药模式（两个都启用，HA 设备页"吃药模式"选择器切换）----
+  mode_day: !include packages/mode-day.yaml
+  mode_week: !include packages/mode-week.yaml
