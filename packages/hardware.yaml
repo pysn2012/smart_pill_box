@@ -1,6 +1,6 @@
 esp32:
   variant: esp32s3
-  flash_size: 8MB
+  flash_size: 16MB
   cpu_frequency: 240MHz
   framework:
     type: esp-idf
@@ -13,22 +13,22 @@ psram:
   mode: octal
   speed: 80MHz
 
-# I2C 总线（OLED: SCL=14, SDA=13）
+# I2C 总线（OLED: SCL=12, SDA=11）
 i2c:
   - id: i2c_bus
-    scl: GPIO14
-    sda: GPIO13
+    scl: GPIO12
+    sda: GPIO11
 
 # I2S 音频总线
 i2s_audio:
-  # INMP441: SCK=16, WS=17（SD 在语音模块里=GPIO18）
+  # INMP441: SCK=13, WS=14（SD 在语音模块里=GPIO15）
   - id: i2s_mic
-    i2s_lrclk_pin: GPIO17
-    i2s_bclk_pin: GPIO16
-  # MAX98357A: BCLK=41, LRC=42（DIN 在语音模块里=GPIO15）
+    i2s_lrclk_pin: GPIO14
+    i2s_bclk_pin: GPIO13
+  # MAX98357A: BCLK=17, LRC=18（DIN 在语音模块里=GPIO16）
   - id: i2s_out_bus
-    i2s_lrclk_pin: GPIO42
-    i2s_bclk_pin: GPIO41
+    i2s_lrclk_pin: GPIO18
+    i2s_bclk_pin: GPIO17
 
 # 颜色定义 (Colors): 将HEX颜色值定义为ID，方便在显示逻辑中引用
 color:

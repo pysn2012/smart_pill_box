@@ -27,10 +27,10 @@ output:
 stepper:
   - platform: a4988
     id: med_stepper
-    step_pin: GPIO39
-    dir_pin: GPIO40
+    step_pin: GPIO5
+    dir_pin: GPIO6
     sleep_pin:
-      number: GPIO38
+      number: GPIO4
       inverted: true
     max_speed: 250 steps/s
     acceleration: 400 steps/s^2
@@ -119,13 +119,13 @@ globals:
     restore_value: false
     initial_value: "-1"
 
-# 打卡按键（GPIO10，低电平按下）
+# 打卡按键（GPIO3，低电平按下）
 binary_sensor:
   - platform: gpio
     id: med_button
     name: 吃药打卡
     pin:
-      number: GPIO10
+      number: GPIO3
       mode: INPUT_PULLUP
       inverted: true
     filters:
