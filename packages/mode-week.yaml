@@ -43,8 +43,12 @@ script:
           if (!(id(med_taken_mask) & (1 << slot)) && nowm >= start)
             due_slot = slot;
           id(med_target_slot) = due_slot;
-          // 仅当提醒状态发生变化时才触发（避免每30秒重复动作）
-          id(med_due_flag) = (due_slot >= 0) && !(id(med_show_alarm) && id(med_active_slot) == due_slot);
+          // 状态变化才触发（避免每30秒重复动作）；已在提醒同一格时按"贪睡间隔"到点重响
+          bool same = id(med_show_alarm) && id(med_active_slot) == due_slot;
+          int snz = (int) id(med_snooze_min).state;
+          bool snooze_due = same && snz > 0 && id(med_last_alarm_min) >= 0 &&
+                            (nowm - id(med_last_alarm_min)) >= snz;
+          id(med_due_flag) = (due_slot >= 0) && (!same || snooze_due);
       - if:
           condition:
             lambda: return id(med_rollover_flag);

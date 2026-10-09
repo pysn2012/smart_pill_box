@@ -1,6 +1,6 @@
 ---
 # ============================================================
-# 立创 ESP32-S3 语音助手 + 智能药盒（按时吃药打卡）
+# ESP32-S3 语音助手 + 智能药盒（按时吃药打卡）
 # 吃药模式：编译后无需改配置，在 Home Assistant 设备页
 #           用"吃药模式"选择器切换 日模式 / 周模式
 # ============================================================
@@ -77,6 +77,12 @@ wifi:
     - script.execute: draw_display
 
 captive_portal:
+
+# 设备自带页面：浏览器打开 http://<设备IP> 即可设置吃药时间/次数/时间段
+# 已定义的 number / datetime / select / button 实体会自动出现在页面上，设置保存在设备本地
+# 与 api(6053)/OTA 共存，端口不冲突
+web_server:
+  port: 80
 
 packages:
   hardware: !include packages/hardware.yaml

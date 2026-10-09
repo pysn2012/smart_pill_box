@@ -1,5 +1,25 @@
-# 时间同步配置（Home Assistant）
+# ============================================================
+# 时间同步（SNTP，不依赖 Home Assistant）
+# 沿用 id: ha_time —— mode-day / mode-week 里的 id(ha_time).now() 无需改动
+# timezone 必须写，否则比本地时间差 8 小时，吃药提醒时间全错
+# ============================================================
 time:
-  - platform: homeassistant
+  - platform: sntp
     id: ha_time
+    timezone: Asia/Shanghai
+    servers:
+      - ntp.aliyun.com
+      - cn.pool.ntp.org
+    on_time_sync:
+      # 对完时立刻扫一次，不必等下一个 30s 周期（重启后能马上判断是否已到吃药时间）
+      - script.execute: med_scan
 
+# ---- 备用时间源（可选）----
+# 想同时保留 HA 作为后备：
+#   1) 上面 sntp 的 id 改成 sntp_time
+#   2) 解开下面的 homeassistant 平台
+#   3) mode-day.yaml / mode-week.yaml 的 lambda 首行改成：
+#        ESPTime now = id(sntp_time).now();
+#        if (!now.is_valid()) now = id(ha_time).now();
+#  - platform: homeassistant
+#    id: ha_time

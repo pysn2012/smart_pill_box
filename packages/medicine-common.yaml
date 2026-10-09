@@ -21,6 +21,7 @@ output:
     pin: GPIO2
 
 # 步进电机（TMC2209 STEP/DIR 接法，兼容 a4988 平台）
+# 控制板 H1(3.3V/G04/G05/G06) ↔ 驱动板 H7(VIO/EN/STEP/DIR)，即 EN=4 STEP=5 DIR=6
 # 官方文档：TMC 驱动没有 SLEEP 脚，对应的是 ENABLE 脚（低电平使能），
 # 因此 sleep_pin 需要 inverted: true；到达目标位置后驱动自动休眠（EN=高，断电）
 # 若实际转向相反，给 dir_pin 加 inverted: true
@@ -64,6 +65,17 @@ number:
     max_value: 240
     step: 5
     initial_value: 30
+    optimistic: true
+    restore_value: true
+  # 贪睡间隔（分钟）：提醒后未打卡，每隔这么久再响一次；0 = 不重复
+  - platform: template
+    name: 贪睡间隔(分钟)
+    id: med_snooze_min
+    icon: mdi:alarm-snooze
+    min_value: 0
+    max_value: 60
+    step: 5
+    initial_value: 0
     optimistic: true
     restore_value: true
 
@@ -118,6 +130,20 @@ globals:
     type: int
     restore_value: false
     initial_value: "-1"
+  # 上次触发提醒时的"当日分钟数"（用于贪睡重响；-1 = 无）
+  - id: med_last_alarm_min
+    type: int
+    restore_value: false
+    initial_value: "-1"
+
+# 设备页面上的测试按钮：点一下按格0走一次完整提醒流程（红灯 + OLED + 电机）
+button:
+  - platform: template
+    name: 测试提醒
+    icon: mdi:bell-ring-outline
+    on_press:
+      - lambda: id(med_target_slot) = 0;
+      - script.execute: med_alarm_on
 
 # 打卡按键（GPIO3，低电平按下）
 binary_sensor:
@@ -202,6 +228,8 @@ script:
           id(med_show_alarm) = true;
           id(med_show_taken) = false;
           id(med_active_slot) = id(med_target_slot);
+          auto now = id(ha_time).now();
+          id(med_last_alarm_min) = now.is_valid() ? (now.hour * 60 + now.minute) : -1;
       - script.execute:
           id: med_go_to_slot
           target_slot: !lambda return id(med_active_slot);
@@ -213,7 +241,9 @@ script:
   - id: med_alarm_off
     mode: single
     then:
-      - lambda: id(med_show_alarm) = false;
+      - lambda: |-
+          id(med_show_alarm) = false;
+          id(med_last_alarm_min) = -1;
       - output.turn_off: med_red
       - script.execute: med_publish_status
       - script.execute: draw_display
