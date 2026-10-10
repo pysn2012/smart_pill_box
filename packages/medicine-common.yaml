@@ -6,9 +6,14 @@
 # 逻辑约定：
 #   - 格子编号从 0 开始（0~7），对外显示为"第1格~第8格"
 #   - 到点 → 红灯 + OLED"该吃药了" + 电机转到对应格
-#   - 过了时间段没打卡 → 红灯和提醒一直保持，直到打卡为止
+#   - 没打卡就一直提醒，红灯不灭，直到打卡为止（已无"时间段"概念）
 #   - 按键打卡 → 红灯灭、绿灯亮、OLED"已吃药"，${med_green_time} 后全部关闭
 #   - 是否吃药以按键打卡为准；跨天自动清空当天打卡记录
+#
+# ★ "关闭"约定：
+#   - 吃药时间为 00:00（0 分）= 关闭；"每日吃药次数" 为 0 = 未设置
+#   - 两者都默认关闭，所以烧录/重启后不会立刻进入吃药状态
+#   - "清空吃药设置"按钮 = 把所有时间/次数一键复位为关闭
 # ============================================================
 
 # 红灯：到点提醒 / 绿灯：已吃药
@@ -55,18 +60,7 @@ select:
         - script.execute: med_alarm_off
         - output.turn_off: med_green
 
-# 吃药时间段（分钟），默认30，两种模式共用
 number:
-  - platform: template
-    name: 吃药时间段(分钟)
-    id: med_window_min
-    icon: mdi:timer-outline
-    min_value: 5
-    max_value: 240
-    step: 5
-    initial_value: 30
-    optimistic: true
-    restore_value: true
   # 贪睡间隔（分钟）：提醒后未打卡，每隔这么久再响一次；0 = 不重复
   - platform: template
     name: 贪睡间隔(分钟)
@@ -136,7 +130,9 @@ globals:
     restore_value: false
     initial_value: "-1"
 
-# 设备页面上的测试按钮：点一下按格0走一次完整提醒流程（红灯 + OLED + 电机）
+# 设备页面上的两个按钮
+#   - 测试提醒：按格0走一次完整提醒流程（红灯 + OLED + 电机），验证硬件用
+#   - 清空吃药设置：把次数/时间全部复位成"关闭"，并清掉当前提醒与当日打卡
 button:
   - platform: template
     name: 测试提醒
@@ -144,6 +140,51 @@ button:
     on_press:
       - lambda: id(med_target_slot) = 0;
       - script.execute: med_alarm_on
+
+  - platform: template
+    name: 清空吃药设置
+    icon: mdi:eraser
+    on_press:
+      # 每日吃药次数归零（0 = 未设置）
+      - number.set:
+          id: med_doses_per_day
+          value: 0
+      # 日模式的 8 个时间归零（00:00 = 关闭）
+      - datetime.time.set:
+          id: med_time_1
+          time: "00:00:00"
+      - datetime.time.set:
+          id: med_time_2
+          time: "00:00:00"
+      - datetime.time.set:
+          id: med_time_3
+          time: "00:00:00"
+      - datetime.time.set:
+          id: med_time_4
+          time: "00:00:00"
+      - datetime.time.set:
+          id: med_time_5
+          time: "00:00:00"
+      - datetime.time.set:
+          id: med_time_6
+          time: "00:00:00"
+      - datetime.time.set:
+          id: med_time_7
+          time: "00:00:00"
+      - datetime.time.set:
+          id: med_time_8
+          time: "00:00:00"
+      # 周模式时间归零
+      - datetime.time.set:
+          id: med_week_time
+          time: "00:00:00"
+      # 清掉当前提醒状态与当日打卡记录
+      - lambda: |-
+          id(med_taken_mask) = 0;
+          id(med_last_day) = -1;
+          id(med_show_taken) = false;
+      - output.turn_off: med_green
+      - script.execute: med_alarm_off
 
 # 打卡按键（GPIO3，低电平按下）
 binary_sensor:

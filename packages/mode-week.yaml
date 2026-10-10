@@ -4,11 +4,16 @@
 # 用法：与 medicine-common.yaml 一起启用；
 #       在 HA 设备页用"吃药模式"选择器切换到"周模式"
 #
+# ★ 默认关闭约定（重要）：
+#   - "每天吃药时间" 默认 00:00:00 = 关闭，此时周模式不提醒
+#   - 改成实际时刻后才生效
+#   - 一键复位：设备页的"清空吃药设置"按钮
+#
 # 注意：日模式下"每天吃药时间"不参与逻辑，只需在周模式下设置。
 # day_of_week: 周日=1 ... 周六=7，换算 (day_of_week+5)%7 → 周一=0 ... 周日=6
 # ============================================================
 
-# 每天吃药时间（每天都一样，在 HA 里设置，本地保存）
+# 每天吃药时间（每天都一样，在 HA / 设备页设置，本地保存）；00:00:00 = 关闭
 datetime:
   - platform: template
     type: TIME
@@ -17,7 +22,7 @@ datetime:
     time_id: ha_time
     optimistic: true
     restore_value: true
-    initial_value: "08:00:00"
+    initial_value: "00:00:00"
 
 script:
   - id: med_scan_week
@@ -40,7 +45,8 @@ script:
           int slot = (now.day_of_week + 5) % 7;
           int start = id(med_week_time).hour * 60 + id(med_week_time).minute;
           int due_slot = -1;
-          if (!(id(med_taken_mask) & (1 << slot)) && nowm >= start)
+          // start == 0（即 00:00）视为"关闭"，不提醒
+          if (start > 0 && !(id(med_taken_mask) & (1 << slot)) && nowm >= start)
             due_slot = slot;
           id(med_target_slot) = due_slot;
           // 状态变化才触发（避免每30秒重复动作）；已在提醒同一格时按"贪睡间隔"到点重响

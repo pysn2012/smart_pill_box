@@ -4,26 +4,30 @@
 # 用法：与 medicine-common.yaml 一起启用；
 #       在 HA 设备页用"吃药模式"选择器切换到"日模式"
 #
-# 吃药次数与时间均在 Home Assistant 设备实体里设置，
-# 时间保存在设备本地（restore_value），重启不丢。
-# 注意：周模式下"第1~8次吃药时间"和"每日吃药次数"不参与逻辑，
-#       只需设置日模式用到的部分。
+# ★ 默认关闭约定（重要）：
+#   - "每日吃药次数" 默认 0 = 未设置 → 任何时间都不会提醒
+#   - "第1~8次吃药时间" 默认 00:00:00 = 关闭，扫描时直接跳过
+#   - 要让第 i 次生效：先把"每日吃药次数"设成 >= i，再把"第i次吃药时间"改成实际时刻
+#   - 一键复位：设备页的"清空吃药设置"按钮
+#   → 这样烧录/重启后设备不会立刻进入吃药状态
+#
+# 注意：周模式下"第1~8次吃药时间"和"每日吃药次数"不参与逻辑。
 # ============================================================
 
 number:
-  # 每日吃药次数（1~8），使用前 N 个时间实体
+  # 每日吃药次数（0~8）：0 = 未设置（不提醒），1~8 = 使用前 N 个时间实体
   - platform: template
     name: 每日吃药次数
     id: med_doses_per_day
     icon: mdi:pill-multiple
-    min_value: 1
+    min_value: 0
     max_value: 8
     step: 1
-    initial_value: 3
+    initial_value: 0
     optimistic: true
     restore_value: true
 
-# 每天各次吃药时间（在 HA 里设置）
+# 每天各次吃药时间（在 HA / 设备页设置），00:00:00 = 关闭
 datetime:
   - platform: template
     type: TIME
@@ -32,7 +36,7 @@ datetime:
     time_id: ha_time
     optimistic: true
     restore_value: true
-    initial_value: "08:00:00"
+    initial_value: "00:00:00"
   - platform: template
     type: TIME
     id: med_time_2
@@ -40,7 +44,7 @@ datetime:
     time_id: ha_time
     optimistic: true
     restore_value: true
-    initial_value: "12:00:00"
+    initial_value: "00:00:00"
   - platform: template
     type: TIME
     id: med_time_3
@@ -48,7 +52,7 @@ datetime:
     time_id: ha_time
     optimistic: true
     restore_value: true
-    initial_value: "18:00:00"
+    initial_value: "00:00:00"
   - platform: template
     type: TIME
     id: med_time_4
@@ -56,7 +60,7 @@ datetime:
     time_id: ha_time
     optimistic: true
     restore_value: true
-    initial_value: "23:59:00"
+    initial_value: "00:00:00"
   - platform: template
     type: TIME
     id: med_time_5
@@ -64,7 +68,7 @@ datetime:
     time_id: ha_time
     optimistic: true
     restore_value: true
-    initial_value: "23:59:00"
+    initial_value: "00:00:00"
   - platform: template
     type: TIME
     id: med_time_6
@@ -72,7 +76,7 @@ datetime:
     time_id: ha_time
     optimistic: true
     restore_value: true
-    initial_value: "23:59:00"
+    initial_value: "00:00:00"
   - platform: template
     type: TIME
     id: med_time_7
@@ -80,7 +84,7 @@ datetime:
     time_id: ha_time
     optimistic: true
     restore_value: true
-    initial_value: "23:59:00"
+    initial_value: "00:00:00"
   - platform: template
     type: TIME
     id: med_time_8
@@ -88,7 +92,7 @@ datetime:
     time_id: ha_time
     optimistic: true
     restore_value: true
-    initial_value: "23:59:00"
+    initial_value: "00:00:00"
 
 script:
   - id: med_scan_day
@@ -107,8 +111,8 @@ script:
             id(med_rollover_flag) = true;
           }
           int nowm = now.hour * 60 + now.minute;
+          // 次数 0 = 未设置：循环不会执行，due_slot 保持 -1
           int nd = (int) id(med_doses_per_day).state;
-          if (nd < 1) nd = 1;
           if (nd > ${med_slots}) nd = ${med_slots};
           int starts[${med_slots}] = {
             id(med_time_1).hour * 60 + id(med_time_1).minute,
@@ -121,8 +125,11 @@ script:
             id(med_time_8).hour * 60 + id(med_time_8).minute
           };
           // 找第一个"已到点且未打卡"的次数
+          // starts[i] == 0（即 00:00）视为"关闭"，跳过
           int due_slot = -1;
           for (int i = 0; i < nd; i++) {
+            if (starts[i] <= 0)
+              continue;
             if (id(med_taken_mask) & (1 << i))
               continue;
             if (nowm >= starts[i]) {
