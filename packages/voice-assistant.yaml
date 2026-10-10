@@ -89,8 +89,7 @@ micro_wake_word:
   id: mww
   models:
     - okay_nabu
-    - model: models/nihaoxiaozhi/nihaoxiaozhi.json
-      probability_cutoff: 0.85
+    - model: models/nihaoxiaozhi.json
   on_wake_word_detected:
     - voice_assistant.start:
         wake_word: !lambda return wake_word;
