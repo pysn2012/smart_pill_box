@@ -67,6 +67,9 @@ ota:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
+  # 关闭省电模式：省电模式会让射频周期性休眠，音频流式传输时产生突发延迟，
+  # 本设备为市电供电，用不上的省电换稳定
+  power_save_mode: none
   ap:
     ssid: "pillbox-ap-Setup"
     password: "12345678"
