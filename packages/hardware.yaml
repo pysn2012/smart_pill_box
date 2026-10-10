@@ -19,29 +19,9 @@ esp32:
       # 这里显式置 n，确保蓝牙控制器完全不启动（省 flash 与内存）
       CONFIG_BT_ENABLED: "n"
 
-# PSRAM 必须"确认存在"（ignore_not_found: false）才能启用下面 network 的
-# PSRAM 感知高性能优化（TCP 窗口 512KB + 512 个 WiFi RX 缓冲）。
-# 本板 PSRAM 已实测可用（日志 Available: YES / 8192 KB），可安全关闭容错。
 psram:
   mode: octal
   speed: 80MHz
-  ignore_not_found: false
-
-# ============================================================
-# 网络栈优化 —— 针对"语音流式传输时设备答不上 HA 请求"的核心修复
-#
-# 机理：lwIP 默认每连接发缓冲只有 5744 字节。语音音频是突发式写入，
-#       缓冲一满发送立刻停住，API 任务被堵死，设备无法在 10 秒内回应
-#       HA 的 DisconnectRequest（HA 日志实测：Timeout waiting for
-#       DisconnectResponse after 10.0s）→ HA 强关连接 → 设备侧掉线
-#       → voice_assistant 停麦回 IDLE（表现为"聆听状态死掉"）。
-#
-# tcp_send_buffer 是 ESPHome 2026.9.0 新增选项，2026.8.x 上不存在，
-# 因此必须先升级 ESPHome 再编译本配置。
-# ============================================================
-network:
-  enable_high_performance: true
-  tcp_send_buffer: 16kB
 
 # I2C 总线（OLED: SCL=12, SDA=11）
 # frequency 必须提高到 400kHz：默认 50kHz 刷一帧 OLED 要阻塞主循环 ~220ms，
