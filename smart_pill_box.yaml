@@ -79,10 +79,12 @@ wifi:
 captive_portal:
 
 # 设备自带页面：浏览器打开 http://<设备IP> 即可设置吃药时间/次数/时间段
-# 已定义的 number / datetime / select / button 实体会自动出现在页面上，设置保存在设备本地
-# 与 api(6053)/OTA 共存，端口不冲突
-web_server:
-  port: 80
+# ⚠️ 调试语音助手时必须注释掉：web_server 与语音流式传输抢 RAM/CPU，
+#    会导致 HA 在 STT 阶段断开 API 连接（日志两次失败均复现）。
+#    吃药时间/次数/模式等实体在 HA 设备页同样可以设置，功能不受影响。
+#    若后续确认问题解决后想恢复，取消注释即可（如语音复发则保持关闭）。
+#web_server:
+#  port: 80
 
 packages:
   hardware: !include packages/hardware.yaml

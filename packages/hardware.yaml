@@ -21,10 +21,13 @@ psram:
   speed: 80MHz
 
 # I2C 总线（OLED: SCL=12, SDA=11）
+# frequency 必须提高到 400kHz：默认 50kHz 刷一帧 OLED 要阻塞主循环 ~220ms，
+# 语音流式传输期间会卡住 API 发包（日志中的 "took a long time (220ms)" 即此）
 i2c:
   - id: i2c_bus
     scl: GPIO12
     sda: GPIO11
+    frequency: 400kHz
 
 # I2S 音频总线
 i2s_audio:
