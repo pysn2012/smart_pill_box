@@ -10,9 +10,9 @@ time:
     servers:
       - ntp.aliyun.com
       - cn.pool.ntp.org
-    on_time_sync:
-      # 对完时立刻扫一次，不必等下一个 30s 周期（重启后能马上判断是否已到吃药时间）
-      - script.execute: med_scan
+    # V15 排查：药盒模块注释（恢复时取消注释）
+    # on_time_sync:
+    #   - script.execute: med_scan
 
 # ---- 备用时间源（可选）----
 # 想同时保留 HA 作为后备：

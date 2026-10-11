@@ -15,16 +15,9 @@ script:
                       condition:
                         api.connected:
                       then:
+                        # V15 排查：严格对齐 lc-esp32s3 的纯 phase 切换（无药盒页）
                         - lambda: |
-                            // 吃药提醒优先于语音助手页面
-                            if (id(med_show_taken)) {
-                              id(oled128).show_page(med_ok_page);
-                              id(oled128).update();
-                            } else if (id(med_show_alarm)) {
-                              id(oled128).show_page(med_alarm_page);
-                              id(oled128).update();
-                            } else {
-                              switch(id(voice_assistant_phase)) {
+                            switch(id(voice_assistant_phase)) {
                               case ${voice_assist_listening_phase_id}:
                                 id(oled128).show_page(listening_page);
                                 id(oled128).update();
@@ -52,7 +45,6 @@ script:
                               default:
                                 id(oled128).show_page(idle_page);
                                 id(oled128).update();
-                              }
                             }
                       else:
                         - display.page.show: no_ha_page

@@ -171,14 +171,13 @@ display:
         lambda: |-
           it.fill(id(bg_color));
           it.printf(35, 20, id(font_main), id(text_color), "%s", "静音状态");
-      # 吃药提醒页面（红灯状态下显示）
-      - id: med_alarm_page
-        lambda: |-
-          it.fill(id(bg_color));
-          it.printf(64, 10, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "该吃药了");
-          it.printf(64, 32, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "第%d格", (int) id(med_active_slot) + 1);
-      # 已吃药页面（打卡后绿灯期间显示）
-      - id: med_ok_page
-        lambda: |-
-          it.fill(id(bg_color));
-          it.printf(64, 20, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "已吃药");
+      # V15 排查：药盒页面注释（引用 medicine-common 的 med_active_slot）
+      # - id: med_alarm_page
+      #   lambda: |-
+      #     it.fill(id(bg_color));
+      #     it.printf(64, 10, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "该吃药了");
+      #     it.printf(64, 32, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "第%d格", (int) id(med_active_slot) + 1);
+      # - id: med_ok_page
+      #   lambda: |-
+      #     it.fill(id(bg_color));
+      #     it.printf(64, 20, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "已吃药");
