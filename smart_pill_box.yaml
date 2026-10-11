@@ -6,7 +6,7 @@
 # ============================================================
 
 substitutions:
-  name: pill_box
+  name: pill-box
   friendly_name: pill_box
 
   # 语音助手不同阶段的ID，用于内部逻辑判断和显示切换
