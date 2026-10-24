@@ -289,9 +289,9 @@ script:
                   entity_id: ${tts_engine_entity}
                   media_player_entity_id: ${med_media_player_entity}
                   message: !lambda |-
-                    if (id(med_mode).state == "日模式")
+                    if (id(med_mode).current_option() == "日模式")
                       return "主人，第" + std::to_string(id(med_active_slot) + 1) + "次吃药时间到了";
-                    return "主人，今天吃药时间到了";
+                    return std::string("主人，今天吃药时间到了");
       - script.execute: draw_display
 
   # 退出提醒状态（所有到期次数已打卡 / 跨天重置 / 切换模式）
@@ -334,7 +334,7 @@ script:
       - lambda: |-
           if (id(med_show_alarm) || id(med_show_taken)) {
             std::string label;
-            if (id(med_mode).state == "日模式") {
+            if (id(med_mode).current_option() == "日模式") {
               label = "第" + std::to_string(id(med_active_slot) + 1) + "次";
             } else {
               static const char *WD[] = {"周一", "周二", "周三", "周四", "周五", "周六", "周日"};
