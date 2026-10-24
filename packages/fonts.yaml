@@ -10,8 +10,8 @@ font:
       family: "Noto Sans SC"
       weight: 400
       italic: false
-    id: font_main  # 标题
-    size: 14
+    id: font_main  # 标题/待机页正文
+    size: 16
     glyphs: ${allowed_characters}
     ignore_missing_glyphs: true
   - file:

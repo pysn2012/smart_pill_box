@@ -109,6 +109,11 @@ globals:
     type: bool
     restore_value: false
     initial_value: "false"
+  # 正在提醒的格子已超期（超过 ${med_expire_minutes} 分钟），需撤提醒
+  - id: med_expire_flag
+    type: bool
+    restore_value: false
+    initial_value: "false"
   # 电机当前所在格（0 起，开机假定停在格 0）
   - id: med_current_slot
     type: int
@@ -337,7 +342,7 @@ script:
             if (id(med_mode).current_option() == "日模式") {
               label = "第" + std::to_string(id(med_active_slot) + 1) + "次";
             } else {
-              static const char *WD[] = {"周一", "周二", "周三", "周四", "周五", "周六", "周日"};
+              static const char *WD[] = {"星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"};
               int s = id(med_active_slot);
               label = (s >= 0 && s < 7) ? std::string(WD[s]) : std::string("今天");
             }

@@ -41,12 +41,14 @@ script:
             id(med_rollover_flag) = true;
           }
           int nowm = now.hour * 60 + now.minute;
+          int grace = ${med_expire_minutes};
           // day_of_week: 1=周日 ... 7=周六 → 换算为 周一=0 ... 周日=6
           int slot = (now.day_of_week + 5) % 7;
           int start = id(med_week_time).hour * 60 + id(med_week_time).minute;
           int due_slot = -1;
-          // start == 0（即 00:00）视为"关闭"，不提醒
-          if (start > 0 && !(id(med_taken_mask) & (1 << slot)) && nowm >= start)
+          // 提醒窗口：start <= now < start + 超时时长；00:00 = 关闭
+          if (start > 0 && !(id(med_taken_mask) & (1 << slot)) &&
+              nowm >= start && nowm < start + grace)
             due_slot = slot;
           id(med_target_slot) = due_slot;
           // 状态变化才触发（避免每30秒重复动作）；已在提醒同一格时按"贪睡间隔"到点重响
@@ -55,10 +57,23 @@ script:
           bool snooze_due = same && snz > 0 && id(med_last_alarm_min) >= 0 &&
                             (nowm - id(med_last_alarm_min)) >= snz;
           id(med_due_flag) = (due_slot >= 0) && (!same || snooze_due);
+          // 正在提醒的格子已超期 → 撤提醒（红灯灭、状态回空闲）
+          if (id(med_show_alarm) && !id(med_due_flag)) {
+            bool a_expired = (start <= 0) || (nowm >= start + grace) ||
+                             (id(med_active_slot) != slot);
+            if (a_expired)
+              id(med_expire_flag) = true;
+          }
       - if:
           condition:
             lambda: return id(med_rollover_flag);
           then:
+            - script.execute: med_alarm_off
+      - if:
+          condition:
+            lambda: return id(med_expire_flag);
+          then:
+            - lambda: id(med_expire_flag) = false;
             - script.execute: med_alarm_off
       - if:
           condition:

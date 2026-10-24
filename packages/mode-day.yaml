@@ -111,6 +111,7 @@ script:
             id(med_rollover_flag) = true;
           }
           int nowm = now.hour * 60 + now.minute;
+          int grace = ${med_expire_minutes};
           // 次数 0 = 未设置：循环不会执行，due_slot 保持 -1
           int nd = (int) id(med_doses_per_day).state;
           if (nd > ${med_slots}) nd = ${med_slots};
@@ -124,18 +125,18 @@ script:
             id(med_time_7).hour * 60 + id(med_time_7).minute,
             id(med_time_8).hour * 60 + id(med_time_8).minute
           };
-          // 找第一个"已到点且未打卡"的次数
-          // starts[i] == 0（即 00:00）视为"关闭"，跳过
+          // 提醒窗口：start <= now < start + 超时时长
+          // 找第一个"已到点、未打卡、未超期"的次数
           int due_slot = -1;
           for (int i = 0; i < nd; i++) {
             if (starts[i] <= 0)
               continue;
             if (id(med_taken_mask) & (1 << i))
               continue;
-            if (nowm >= starts[i]) {
-              due_slot = i;
-              break;
-            }
+            if (nowm < starts[i] || nowm >= starts[i] + grace)
+              continue;  // 未到点 或 已超期
+            due_slot = i;
+            break;
           }
           id(med_target_slot) = due_slot;
           // 状态变化才触发（避免每30秒重复动作）；已在提醒同一格时按"贪睡间隔"到点重响
@@ -144,10 +145,23 @@ script:
           bool snooze_due = same && snz > 0 && id(med_last_alarm_min) >= 0 &&
                             (nowm - id(med_last_alarm_min)) >= snz;
           id(med_due_flag) = (due_slot >= 0) && (!same || snooze_due);
+          // 正在提醒的格子已超期 → 撤提醒（红灯灭、状态回空闲）
+          if (id(med_show_alarm) && !id(med_due_flag)) {
+            int a = id(med_active_slot);
+            bool a_expired = (a < 0) || (a >= nd) || (starts[a] <= 0) || (nowm >= starts[a] + grace);
+            if (a_expired)
+              id(med_expire_flag) = true;
+          }
       - if:
           condition:
             lambda: return id(med_rollover_flag);
           then:
+            - script.execute: med_alarm_off
+      - if:
+          condition:
+            lambda: return id(med_expire_flag);
+          then:
+            - lambda: id(med_expire_flag) = false;
             - script.execute: med_alarm_off
       - if:
           condition:

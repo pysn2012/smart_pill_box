@@ -60,55 +60,66 @@ display:
     update_interval: never
     # 定义了多个显示页面，每个页面是一个独立的绘制函数
     pages:
-      # 待机页面：日期时间 + 今日吃药安排（每行 2 个）
+      # 待机页面：日期星期居中 / 时间居中 / 今日吃药安排（16px，每行 2 个）
+      # 打卡标记：已=已打卡，未=未到点或窗口内，过=已超期不再提醒
       - id: idle_page
         lambda: |-
           it.fill(id(bg_color));
           auto now = id(ha_time).now();
           if (!now.is_valid()) {
-            it.printf(0, 20, id(font_main), id(text_color), "时间同步中");
+            it.printf(esphome::display::TextAlign::TOP_CENTER, id(font_main), id(text_color), "时间同步中");
             return;
           }
-          static const char *WD[] = {"周一", "周二", "周三", "周四", "周五", "周六", "周日"};
-          // 第1行：日期 + 星期
-          it.printf(0, 0, id(font_small), id(text_color), "%d月%d日 %s",
-                    now.month, now.day_of_month, WD[(now.day_of_week + 5) % 7]);
-          // 第2行：时间
-          it.printf(0, 13, id(font_main), id(text_color), "%02d:%02d", now.hour, now.minute);
-          // 第3~4行：今日吃药安排，每行 2 个："1)08:00已  2)12:00未"
+          static const char *WD[] = {"星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"};
+          int nowm = now.hour * 60 + now.minute;
+          int grace = ${med_expire_minutes};
+          // 第1行：日期 + 星期（居中）
+          it.printf(64, 0, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER,
+                    "%d月%d日 %s", now.month, now.day_of_month, WD[(now.day_of_week + 5) % 7]);
+          // 第2行：时间（居中）
+          it.printf(64, 16, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER,
+                    "%02d:%02d", now.hour, now.minute);
+          // 第3~4行：今日吃药安排，每行 2 个："08:00已  12:00未"
           if (id(med_mode).current_option() == "日模式") {
             int nd = (int) id(med_doses_per_day).state;
             if (nd > ${med_slots}) nd = ${med_slots};
-            if (nd <= 0) {
-              it.printf(0, 34, id(font_small), id(text_color), "未设置吃药时间");
-            } else {
-              const datetime::TimeEntity *tms[${med_slots}] = {
-                id(med_time_1), id(med_time_2), id(med_time_3), id(med_time_4),
-                id(med_time_5), id(med_time_6), id(med_time_7), id(med_time_8)};
-              int shown = 0;
-              for (int i = 0; i < nd && shown < 4; i++) {
-                int st = tms[i]->hour * 60 + tms[i]->minute;
-                if (st <= 0)
-                  continue;  // 00:00 = 关闭
-                int y = 32 + (shown / 2) * 14;
-                int x = (shown % 2) * 64;
-                it.printf(x, y, id(font_small), id(text_color), "%d)%02d:%02d%s",
-                          i + 1, tms[i]->hour, tms[i]->minute,
-                          (id(med_taken_mask) & (1 << i)) ? "已" : "未");
-                shown++;
-              }
-              if (shown == 0)
-                it.printf(0, 34, id(font_small), id(text_color), "未设置吃药时间");
+            const datetime::TimeEntity *tms[${med_slots}] = {
+              id(med_time_1), id(med_time_2), id(med_time_3), id(med_time_4),
+              id(med_time_5), id(med_time_6), id(med_time_7), id(med_time_8)};
+            int shown = 0;
+            for (int i = 0; i < nd && shown < 4; i++) {
+              int st = tms[i]->hour * 60 + tms[i]->minute;
+              if (st <= 0)
+                continue;  // 00:00 = 关闭
+              const char *mark;
+              if (id(med_taken_mask) & (1 << i))
+                mark = "已";
+              else if (nowm >= st + grace)
+                mark = "过";
+              else
+                mark = "未";
+              it.printf((shown % 2) * 66, 32 + (shown / 2) * 16, id(font_main), id(text_color),
+                        "%02d:%02d%s", tms[i]->hour, tms[i]->minute, mark);
+              shown++;
             }
+            if (shown == 0)
+              it.printf(esphome::display::TextAlign::TOP_CENTER, id(font_main), id(text_color), "未设置吃药时间");
           } else {
             // 周模式：每天同一时间
             int st = id(med_week_time).hour * 60 + id(med_week_time).minute;
-            if (st > 0)
-              it.printf(0, 34, id(font_small), id(text_color), "每天 %02d:%02d %s",
-                        id(med_week_time).hour, id(med_week_time).minute,
-                        (id(med_taken_mask) & (1 << ((now.day_of_week + 5) % 7))) ? "已" : "未");
-            else
-              it.printf(0, 34, id(font_small), id(text_color), "未设置吃药时间");
+            if (st > 0) {
+              const char *mark;
+              if (id(med_taken_mask) & (1 << ((now.day_of_week + 5) % 7)))
+                mark = "已";
+              else if (nowm >= st + grace)
+                mark = "过";
+              else
+                mark = "未";
+              it.printf(esphome::display::TextAlign::TOP_CENTER, id(font_main), id(text_color),
+                        "每天 %02d:%02d %s", id(med_week_time).hour, id(med_week_time).minute, mark);
+            } else {
+              it.printf(esphome::display::TextAlign::TOP_CENTER, id(font_main), id(text_color), "未设置吃药时间");
+            }
           }
       # 监听页面
       - id: listening_page
@@ -225,7 +236,7 @@ display:
           if (id(med_mode).current_option() == "日模式") {
             it.printf(64, 32, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "第%d次", (int) id(med_active_slot) + 1);
           } else {
-            static const char *WD[] = {"周一", "周二", "周三", "周四", "周五", "周六", "周日"};
+            static const char *WD[] = {"星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"};
             int s = id(med_active_slot);
             it.printf(64, 32, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "%s吃药",
                       (s >= 0 && s < 7) ? WD[s] : "今天");
