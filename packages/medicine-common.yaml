@@ -259,7 +259,9 @@ script:
           id(med_slot_sensor).publish_state((float) id(med_current_slot));
       - stepper.set_target:
           id: med_stepper
-          target: !lambda return id(med_steps_pos);
+          # 回差补偿：目标位整体前移 ${med_slot_offset_steps} 步（-1°），
+          # med_steps_pos 仍保持标准 45°/格 累计值，补偿不随格数发散
+          target: !lambda return id(med_steps_pos) + ${med_slot_offset_steps};
 
   # 进入提醒状态：红灯 + OLED 提醒 + 电机转到对应格
   - id: med_alarm_on
@@ -276,6 +278,20 @@ script:
           target_slot: !lambda return id(med_active_slot);
       - output.turn_on: med_red
       - script.execute: med_publish_status
+      # 到点 TTS 播报（走药盒喇叭；tts_engine_entity 留空则跳过）
+      - if:
+          condition:
+            lambda: return std::string("${tts_engine_entity}") != "";
+          then:
+            - homeassistant.service:
+                service: tts.speak
+                data:
+                  entity_id: ${tts_engine_entity}
+                  media_player_entity_id: ${med_media_player_entity}
+                  message: !lambda |-
+                    if (id(med_mode).state == "日模式")
+                      return "主人，第" + std::to_string(id(med_active_slot) + 1) + "次吃药时间到了";
+                    return "主人，今天吃药时间到了";
       - script.execute: draw_display
 
   # 退出提醒状态（所有到期次数已打卡 / 跨天重置 / 切换模式）
@@ -311,14 +327,24 @@ script:
             - lambda: id(med_show_taken) = false;
             - script.execute: draw_display
 
-  # 发布吃药状态到 HA
+  # 发布吃药状态到 HA（按模式区分叫法：日模式=第N次，周模式=周X）
   - id: med_publish_status
     mode: single
     then:
       - lambda: |-
-          if (id(med_show_alarm))
-            id(med_status).publish_state("该吃药 第" + std::to_string(id(med_active_slot) + 1) + "格");
-          else if (id(med_show_taken))
-            id(med_status).publish_state("已吃药");
-          else
+          if (id(med_show_alarm) || id(med_show_taken)) {
+            std::string label;
+            if (id(med_mode).state == "日模式") {
+              label = "第" + std::to_string(id(med_active_slot) + 1) + "次";
+            } else {
+              static const char *WD[] = {"周一", "周二", "周三", "周四", "周五", "周六", "周日"};
+              int s = id(med_active_slot);
+              label = (s >= 0 && s < 7) ? std::string(WD[s]) : std::string("今天");
+            }
+            if (id(med_show_alarm))
+              id(med_status).publish_state("该吃药 " + label);
+            else
+              id(med_status).publish_state("已吃药 " + label);
+          } else {
             id(med_status).publish_state("空闲");
+          }

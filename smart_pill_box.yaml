@@ -33,6 +33,18 @@ substitutions:
   # 打卡后绿灯 + OLED"已吃药"的显示时长，之后关闭所有提醒
   med_green_time: "10s"
 
+  # ---- 到点 TTS 播报（走药盒喇叭）----
+  # TTS 引擎实体 ID（Edge TTS 晓晓中文语音）；留空 = 不播报；此值编译期生效，改动需重刷
+  tts_engine_entity: "tts.edgetts_zh_cn_xiaoxiaoneural"
+  # 药盒本机 media_player 实体 ID：设置 → 设备 → pill_box → media_player 实体（核对一下实际 ID）
+  med_media_player_entity: "media_player.pill_box_a07efc"
+
+  # ---- 步进电机回差补偿 ----
+  # 每格仍按 45°(400步) 绝对定位，目标位整体前移这么多步：
+  # -16 步 = 1/16 细分下 -1°，抵消实测的机械过冲；机械修好后改回 0
+  # 注意不要用"改小每格步数"的方式补偿，会累计发散（第8格偏 8°）
+  med_slot_offset_steps: "-16"
+
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
@@ -81,6 +93,14 @@ wifi:
     - script.execute: draw_display
 
 captive_portal:
+
+# 待机页时钟/日程刷新：每 5 秒重画一次。
+# 走 draw_display 的优先级逻辑——吃药提醒/已吃药/语音页面优先，
+# 只有真正待机时才会画时钟，不会打断提醒和语音交互
+interval:
+  - interval: 5s
+    then:
+      - script.execute: draw_display
 
 # 设备自带页面：浏览器打开 http://<设备IP> 即可设置吃药时间/次数/时间段
 # ⚠️ 调试语音助手时必须注释掉：web_server 与语音流式传输抢 RAM/CPU，
