@@ -1,5 +1,5 @@
 # 工作流名称
-name: build esphome
+name: build esphome va
 
 # 触发条件
 on:
@@ -59,13 +59,4 @@ jobs:
             ${{ steps.find_fw.outputs.OTA }}
             ${{ steps.find_fw.outputs.FACTORY }}
             smart_pill_box.yaml
-            packages/fonts.yaml
-            packages/script.yaml
-            packages/voice-assistant.yaml
-            packages/hardware.yaml
-            packages/sensor.yaml
-            packages/time.yaml
-            packages/medicine-common.yaml
-            packages/mode-day.yaml
-            packages/mode-week.yaml
           retention-days: 30
