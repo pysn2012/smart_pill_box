@@ -16,7 +16,7 @@
 #   - "清空吃药设置"按钮 = 把所有时间/次数一键复位为关闭
 # ============================================================
 
-# 红灯：到点提醒 / 绿灯：已吃药
+# 红灯：到点提醒 / 绿灯：已吃药（2026-10-24 换板 LC-ESP32S3：红=GPIO1 绿=GPIO2）
 output:
   - platform: gpio
     id: med_red
@@ -26,17 +26,17 @@ output:
     pin: GPIO2
 
 # 步进电机（TMC2209 STEP/DIR 接法，兼容 a4988 平台）
-# 控制板 H1(3.3V/G04/G05/G06) ↔ 驱动板 H7(VIO/EN/STEP/DIR)，即 EN=4 STEP=5 DIR=6
-# 官方文档：TMC 驱动没有 SLEEP 脚，对应的是 ENABLE 脚（低电平使能），
+# 2026-10-24 换板（LC-ESP32S3）：EN=GPIO7 STEP=GPIO9 DIR=GPIO10
+# TMC 驱动没有 SLEEP 脚，对应的是 ENABLE 脚（低电平使能），
 # 因此 sleep_pin 需要 inverted: true；到达目标位置后驱动自动休眠（EN=高，断电）
 # 若实际转向相反，给 dir_pin 加 inverted: true
 stepper:
   - platform: a4988
     id: med_stepper
-    step_pin: GPIO5
-    dir_pin: GPIO6
+    step_pin: GPIO9
+    dir_pin: GPIO10
     sleep_pin:
-      number: GPIO4
+      number: GPIO7
       inverted: true
     max_speed: 250 steps/s
     acceleration: 400 steps/s^2
@@ -186,13 +186,13 @@ button:
       - output.turn_off: med_green
       - script.execute: med_alarm_off
 
-# 打卡按键（GPIO3，低电平按下）
+# 打卡按键（GPIO5，低电平按下；2026-10-24 换板 LC-ESP32S3）
 binary_sensor:
   - platform: gpio
     id: med_button
     name: 吃药打卡
     pin:
-      number: GPIO3
+      number: GPIO5
       mode: INPUT_PULLUP
       inverted: true
     filters:

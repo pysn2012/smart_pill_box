@@ -10,9 +10,9 @@ time:
     servers:
       - ntp.aliyun.com
       - cn.pool.ntp.org
-    # V15 排查：药盒模块注释（恢复时取消注释）
-    # on_time_sync:
-    #   - script.execute: med_scan
+    # 时间同步成功后立即扫描一次，避免开机后要等最多 30 秒才判断
+    on_time_sync:
+      - script.execute: med_scan
 
 # ---- 备用时间源（可选）----
 # 想同时保留 HA 作为后备：

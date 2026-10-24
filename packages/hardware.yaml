@@ -1,13 +1,13 @@
 # ============================================================
-# 硬件引脚 —— 已按 PCB/pillbox 控制板原理图核对（2026-09-28 版，
-# 核对图：PCB/pillbox_Schematic1_1_1-P1_2026-10-05.png）
-# 主控：合宙 ESP32-S3 核心板（直插），可用引脚 G0~G18
-# OLED: SCL=G12 SDA=G11 | INMP441: SCK=G13 WS=G14 SD=G15
-# MAX98357A: DIN=G16 BCLK=G17 LRC=G18 | TMC2209: EN=G04 STEP=G05 DIR=G06
+# 硬件引脚 —— 2026-10-24 换板：立创·天空星 LC-ESP32S3
+# 主控 ESP32-S3R8N8（8MB Flash + 8MB Octal PSRAM），引脚与 lc-esp32s3 配置一致
+# OLED: SCL=GPIO42 SDA=GPIO41 | INMP441: SCK=GPIO16 WS=GPIO17 SD=GPIO18
+# MAX98357A: DIN=GPIO38 BCLK=GPIO39 LRC=GPIO40
+# TMC2209: EN=GPIO7 STEP=GPIO9 DIR=GPIO10 | 红LED=GPIO1 绿LED=GPIO2 打卡按键=GPIO5
 # ============================================================
 esp32:
   variant: esp32s3
-  flash_size: 16MB
+  flash_size: 8MB
   cpu_frequency: 240MHz
   framework:
     type: esp-idf
@@ -23,25 +23,25 @@ psram:
   mode: octal
   speed: 80MHz
 
-# I2C 总线（OLED: SCL=12, SDA=11）
-# frequency 必须提高到 400kHz：默认 50kHz 刷一帧 OLED 要阻塞主循环 ~220ms，
-# 语音流式传输期间会卡住 API 发包（日志中的 "took a long time (220ms)" 即此）
+# I2C 总线（OLED: SCL=GPIO42, SDA=GPIO41，与 lc-esp32s3 一致）
+# frequency 400kHz：默认 50kHz 刷一帧 OLED 要阻塞主循环 ~220ms，
+# 语音流式传输期间会卡住 API 发包
 i2c:
   - id: i2c_bus
-    scl: GPIO12
-    sda: GPIO11
+    scl: GPIO42
+    sda: GPIO41
     frequency: 400kHz
 
 # I2S 音频总线
 i2s_audio:
-  # INMP441: SCK=13, WS=14（SD 在语音模块里=GPIO15）
+  # INMP441: SCK=GPIO16, WS=GPIO17（SD 在语音模块里=GPIO18）
   - id: i2s_mic
-    i2s_lrclk_pin: GPIO14
-    i2s_bclk_pin: GPIO13
-  # MAX98357A: BCLK=17, LRC=18（DIN 在语音模块里=GPIO16）
+    i2s_lrclk_pin: GPIO17
+    i2s_bclk_pin: GPIO16
+  # MAX98357A: BCLK=GPIO39, LRC=GPIO40（DIN 在语音模块里=GPIO38）
   - id: i2s_out_bus
-    i2s_lrclk_pin: GPIO18
-    i2s_bclk_pin: GPIO17
+    i2s_lrclk_pin: GPIO40
+    i2s_bclk_pin: GPIO39
 
 # 颜色定义 (Colors): 将HEX颜色值定义为ID，方便在显示逻辑中引用
 color:
@@ -171,13 +171,13 @@ display:
         lambda: |-
           it.fill(id(bg_color));
           it.printf(35, 20, id(font_main), id(text_color), "%s", "静音状态");
-      # V15 排查：药盒页面注释（引用 medicine-common 的 med_active_slot）
-      # - id: med_alarm_page
-      #   lambda: |-
-      #     it.fill(id(bg_color));
-      #     it.printf(64, 10, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "该吃药了");
-      #     it.printf(64, 32, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "第%d格", (int) id(med_active_slot) + 1);
-      # - id: med_ok_page
-      #   lambda: |-
-      #     it.fill(id(bg_color));
-      #     it.printf(64, 20, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "已吃药");
+      # 吃药提醒页面（引用 medicine-common 的 med_active_slot / med_show_alarm）
+      - id: med_alarm_page
+        lambda: |-
+          it.fill(id(bg_color));
+          it.printf(64, 10, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "该吃药了");
+          it.printf(64, 32, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "第%d格", (int) id(med_active_slot) + 1);
+      - id: med_ok_page
+        lambda: |-
+          it.fill(id(bg_color));
+          it.printf(64, 20, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "已吃药");

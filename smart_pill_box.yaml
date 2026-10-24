@@ -40,9 +40,8 @@ esphome:
   on_boot:  # 开机启动逻辑
     priority: 600
     then:
-      # V15 排查：药盒模块整体注释，严格对齐 lc-esp32s3 语音链路
-      # - script.execute: med_init           # 关灯
-      # - script.execute: med_publish_status # 发布吃药状态
+      - script.execute: med_init           # 关灯
+      - script.execute: med_publish_status # 发布吃药状态
       - script.execute: draw_display
       - delay: 30s
       - if:
@@ -97,7 +96,7 @@ packages:
   sensor: !include packages/sensor.yaml
   script: !include packages/script.yaml
   voice: !include packages/voice-assistant.yaml
-  # ---- V15 排查：药盒模块整体注释，严格对齐 lc-esp32s3 ----
-  # medicine_common: !include packages/medicine-common.yaml
-  # mode_day: !include packages/mode-day.yaml
-  # mode_week: !include packages/mode-week.yaml
+  # ---- 吃药打卡（日模式 / 周模式，在 HA 设备页用"吃药模式"切换）----
+  medicine_common: !include packages/medicine-common.yaml
+  mode_day: !include packages/mode-day.yaml
+  mode_week: !include packages/mode-week.yaml

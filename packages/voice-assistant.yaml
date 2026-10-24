@@ -20,7 +20,7 @@ microphone:
     id: box_mic
     i2s_audio_id: i2s_mic
     adc_type: external
-    i2s_din_pin: GPIO15     # SD
+    i2s_din_pin: GPIO18     # SD（与 lc-esp32s3 一致）
     pdm: false
     sample_rate: 16000
     bits_per_sample: 32bit
@@ -31,7 +31,7 @@ speaker:
   - platform: i2s_audio
     id: box_speaker
     i2s_audio_id: i2s_out_bus
-    i2s_dout_pin: GPIO16    # DIN
+    i2s_dout_pin: GPIO38    # DIN（与 lc-esp32s3 一致）
     dac_type: external
     sample_rate: 16000
     bits_per_sample: 16bit
@@ -88,8 +88,8 @@ media_player:
 micro_wake_word:
   id: mww
   models:
-    - okay_nabu
-    - model: models/nihaoxiaozhi.json
+    - model: models/xiaole.json
+    - model: models/xiaoqi.json
   on_wake_word_detected:
     - voice_assistant.start:
         wake_word: !lambda return wake_word;
