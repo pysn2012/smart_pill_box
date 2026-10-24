@@ -67,7 +67,7 @@ display:
           it.fill(id(bg_color));
           auto now = id(ha_time).now();
           if (!now.is_valid()) {
-            it.printf(esphome::display::TextAlign::TOP_CENTER, id(font_main), id(text_color), "时间同步中");
+            it.printf(64, 20, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "时间同步中");
             return;
           }
           static const char *WD[] = {"星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"};
@@ -103,7 +103,7 @@ display:
               shown++;
             }
             if (shown == 0)
-              it.printf(esphome::display::TextAlign::TOP_CENTER, id(font_main), id(text_color), "未设置吃药时间");
+              it.printf(64, 32, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "未设置吃药时间");
           } else {
             // 周模式：每天同一时间
             int st = id(med_week_time).hour * 60 + id(med_week_time).minute;
@@ -115,10 +115,10 @@ display:
                 mark = "过";
               else
                 mark = "未";
-              it.printf(esphome::display::TextAlign::TOP_CENTER, id(font_main), id(text_color),
+              it.printf(64, 32, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER,
                         "每天 %02d:%02d %s", id(med_week_time).hour, id(med_week_time).minute, mark);
             } else {
-              it.printf(esphome::display::TextAlign::TOP_CENTER, id(font_main), id(text_color), "未设置吃药时间");
+              it.printf(64, 32, id(font_main), id(text_color), esphome::display::TextAlign::TOP_CENTER, "未设置吃药时间");
             }
           }
       # 监听页面
