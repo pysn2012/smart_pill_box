@@ -11,7 +11,7 @@ font:
       weight: 400
       italic: false
     id: font_main  # 标题/待机页正文
-    size: 16
+    size: 14
     glyphs: ${allowed_characters}
     ignore_missing_glyphs: true
   - file:
