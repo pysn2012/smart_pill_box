@@ -34,7 +34,10 @@ stepper:
   - platform: a4988
     id: med_stepper
     step_pin: GPIO9
-    dir_pin: GPIO10
+    # V16 顺时针：实测逆时针，取反 DIR 电平（2026-10-29）；若装回后又反向，删掉 inverted 即可
+    dir_pin:
+      number: GPIO10
+      inverted: true
     sleep_pin:
       number: GPIO8
       inverted: true
@@ -249,7 +252,9 @@ script:
       - output.turn_off: med_red
       - output.turn_off: med_green
 
-  # 电机转到指定格（走最短路径，正转/反转自动选择）
+  # 电机转到指定格（顺时针单向：delta=(目标-当前+8)%8，不走反向近路）
+  # 格位约定：12点钟位置 = 0位（空/基准），顺时针为格1~格7（格4=6点钟）
+  # 开机/装配时把 0 位对准取药口（12点）
   - id: med_go_to_slot
     mode: single
     parameters:
@@ -257,8 +262,6 @@ script:
     then:
       - lambda: |-
           int delta = ((target_slot - id(med_current_slot)) % ${med_slots} + ${med_slots}) % ${med_slots};
-          if (delta > ${med_slots} / 2)
-            delta -= ${med_slots};
           id(med_steps_pos) += delta * ${med_steps_per_slot};
           id(med_current_slot) = target_slot;
           id(med_slot_sensor).publish_state((float) id(med_current_slot));
@@ -268,7 +271,7 @@ script:
           # med_steps_pos 仍保持标准 45°/格 累计值，补偿不随格数发散
           target: !lambda return id(med_steps_pos) + ${med_slot_offset_steps};
 
-  # 进入提醒状态：红灯 + OLED 提醒 + 电机转到对应格
+  # 进入提醒状态：红灯 + OLED 提醒 + 电机顺时针转 1 格（相对步进）
   - id: med_alarm_on
     mode: single
     then:
@@ -278,9 +281,11 @@ script:
           id(med_active_slot) = id(med_target_slot);
           auto now = id(ha_time).now();
           id(med_last_alarm_min) = now.is_valid() ? (now.hour * 60 + now.minute) : -1;
+      # V16 绝对格位（2026-10-29 定稿）：12点钟=0位（空），顺时针格1~格7
+      # 第N剂 → 格N（周模式：周N → 格N，周四=格4=6点钟）
       - script.execute:
           id: med_go_to_slot
-          target_slot: !lambda return id(med_active_slot);
+          target_slot: !lambda return id(med_active_slot) + 1;
       - output.turn_on: med_red
       - script.execute: med_publish_status
       # 到点 TTS 播报（走药盒喇叭；tts_engine_entity 留空则跳过）
@@ -288,15 +293,34 @@ script:
           condition:
             lambda: return std::string("${tts_engine_entity}") != "";
           then:
-            - homeassistant.service:
-                service: tts.speak
-                data:
-                  entity_id: ${tts_engine_entity}
-                  media_player_entity_id: ${med_media_player_entity}
-                  message: !lambda |-
-                    if (id(med_mode).current_option() == "日模式")
-                      return "主人，第" + std::to_string(id(med_active_slot) + 1) + "次吃药时间到了";
-                    return std::string("主人，今天吃药时间到了");
+            - if:
+                condition:
+                  api.is_connected:
+                then:
+                  - logger.log:
+                      tag: tts
+                      format: "TTS call: engine=%s player=%s msg=%s"
+                      args:
+                        - '"${tts_engine_entity}"'
+                        - '"${med_media_player_entity}"'
+                        - |-
+                          (id(med_mode).current_option() == "日模式")
+                            ? ("主人，第" + std::to_string(id(med_active_slot) + 1) + "次吃药时间到了").c_str()
+                            : "主人，今天吃药时间到了"
+                  - homeassistant.service:
+                      service: tts.speak
+                      data:
+                        entity_id: ${tts_engine_entity}
+                        media_player_entity_id: ${med_media_player_entity}
+                        message: !lambda |-
+                          if (id(med_mode).current_option() == "日模式")
+                            return "主人，第" + std::to_string(id(med_active_slot) + 1) + "次吃药时间到了";
+                          return std::string("主人，今天吃药时间到了");
+                else:
+                  - logger.log:
+                      tag: tts
+                      level: WARN
+                      format: "TTS skipped: HA API not connected"
       - script.execute: draw_display
 
   # 退出提醒状态（所有到期次数已打卡 / 跨天重置 / 切换模式）
@@ -330,6 +354,19 @@ script:
             - delay: ${med_green_time}
             - output.turn_off: med_green
             - lambda: id(med_show_taken) = false;
+            # V16 吃药结束归位：周模式每次打卡后回0位；
+            # 日模式最后一剂打卡后回0位（未吃完/未到最后一剂时停在当前格）
+            - if:
+                condition:
+                  lambda: |-
+                    if (id(med_mode).current_option() == "周模式")
+                      return true;
+                    int nd = (int) id(med_doses_per_day).state;
+                    return id(med_active_slot) >= nd - 1;
+                then:
+                  - script.execute:
+                      id: med_go_to_slot
+                      target_slot: 0
             - script.execute: draw_display
 
   # 发布吃药状态到 HA（按模式区分叫法：日模式=第N次，周模式=周X）

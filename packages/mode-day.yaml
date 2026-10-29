@@ -1,6 +1,7 @@
 # ============================================================
 # 吃药打卡 - 日模式：每日多次吃药
-# 格子分配：第1次 → 格0 ... 第N次 → 格N-1（最多 ${med_slots} 格）
+# 格位：12点钟=0位（空），顺时针格1~格7；第1次→格1 ... 第N次→格N（最多7次）
+# 最后一剂打卡结束后转盘归位0
 # 用法：与 medicine-common.yaml 一起启用；
 #       在 HA 设备页用"吃药模式"选择器切换到"日模式"
 #
@@ -15,13 +16,13 @@
 # ============================================================
 
 number:
-  # 每日吃药次数（0~8）：0 = 未设置（不提醒），1~8 = 使用前 N 个时间实体
+  # 每日吃药次数（0~7）：0 = 未设置（不提醒），1~7 = 使用前 N 个时间实体
   - platform: template
     name: 每日吃药次数
     id: med_doses_per_day
     icon: mdi:pill-multiple
     min_value: 0
-    max_value: 8
+    max_value: 7
     step: 1
     initial_value: 0
     optimistic: true
@@ -157,6 +158,10 @@ script:
             lambda: return id(med_rollover_flag);
           then:
             - script.execute: med_alarm_off
+            # 每天结束（跨天）：顺时针转回0位（12点钟，保险归位——正常情况打卡后已归位）
+            - script.execute:
+                id: med_go_to_slot
+                target_slot: 0
       - if:
           condition:
             lambda: return id(med_expire_flag);

@@ -1,6 +1,7 @@
 # ============================================================
 # 吃药打卡 - 周模式：每天只吃 1 次，每天时间相同
-# 格子分配：周一→格0，周二→格1 ... 周日→格6（格7 备用）
+# 格位：12点钟=0位（空），顺时针格1~格7；周一→格1 ... 周日→格7
+#       （格4 = 6点钟位置）；每天打卡结束后归位0
 # 用法：与 medicine-common.yaml 一起启用；
 #       在 HA 设备页用"吃药模式"选择器切换到"周模式"
 #
@@ -69,6 +70,10 @@ script:
             lambda: return id(med_rollover_flag);
           then:
             - script.execute: med_alarm_off
+            # 每天结束（跨天）：顺时针转回0位（12点钟，保险归位——正常情况打卡后已归位）
+            - script.execute:
+                id: med_go_to_slot
+                target_slot: 0
       - if:
           condition:
             lambda: return id(med_expire_flag);
