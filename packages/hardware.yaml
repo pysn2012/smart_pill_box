@@ -57,6 +57,7 @@ display:
     model: "SSD1306 128x64"
     i2c_id: i2c_bus
     address: 0x3C
+    rotation: 180
     update_interval: never
     # 定义了多个显示页面，每个页面是一个独立的绘制函数
     pages:
