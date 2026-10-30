@@ -295,7 +295,7 @@ script:
           then:
             - if:
                 condition:
-                  api.is_connected:
+                  api.connected:
                 then:
                   - logger.log:
                       tag: tts
