@@ -34,7 +34,7 @@ stepper:
     step_pin: GPIO9
     dir_pin:
       number: GPIO10
-      inverted: true
+      #inverted: true
     sleep_pin:
       number: GPIO8
       inverted: true
@@ -301,39 +301,10 @@ script:
           target_slot: !lambda return id(med_active_slot) + 1;
       - output.turn_on: med_red
       - script.execute: med_publish_status
-      # 到点 TTS 播报（走药盒喇叭；tts_engine_entity 留空则跳过）
-      - if:
-          condition:
-            lambda: return std::string("${tts_engine_entity}") != "";
-          then:
-            - if:
-                condition:
-                  api.connected:
-                then:
-                  - logger.log:
-                      tag: tts
-                      format: "TTS call: engine=%s player=%s msg=%s"
-                      args:
-                        - '"${tts_engine_entity}"'
-                        - '"${med_media_player_entity}"'
-                        - |-
-                          (id(med_mode).current_option() == "日模式")
-                            ? ("主人，第" + std::to_string(id(med_active_slot) + 1) + "次吃药时间到了").c_str()
-                            : "主人，今天吃药时间到了"
-                  - homeassistant.service:
-                      service: tts.speak
-                      data:
-                        entity_id: ${tts_engine_entity}
-                        media_player_entity_id: ${med_media_player_entity}
-                        message: !lambda |-
-                          if (id(med_mode).current_option() == "日模式")
-                            return "主人，第" + std::to_string(id(med_active_slot) + 1) + "次吃药时间到了";
-                          return std::string("主人，今天吃药时间到了");
-                else:
-                  - logger.log:
-                      tag: tts
-                      level: WARN
-                      format: "TTS skipped: HA API not connected"
+      # 到点播报：设备端固定音频（sounds/med_reminder.wav，离线可用，不依赖 HA/TTS）
+      - media_player.speaker.play_on_device_media_file:
+          media_file: med_reminder_sound
+          announcement: true
       - script.execute: draw_display
 
   # 退出提醒状态（所有到期次数已打卡 / 跨天重置 / 切换模式）

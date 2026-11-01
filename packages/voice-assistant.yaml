@@ -50,6 +50,10 @@ media_player:
       format: FLAC
       sample_rate: 16000
       num_channels: 1
+    # 设备端固定音频（烧录进固件，离线可播）；编码需与流水线一致：16kHz/单声道/16bit
+    files:
+      - id: med_reminder_sound
+        file: sounds/med_reminder.wav
     on_announcement:
       # 如果麦克风正在录音，则停止唤醒词（mWW或VA）
       - if:
