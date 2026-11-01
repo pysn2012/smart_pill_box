@@ -1,9 +1,8 @@
 # ============================================================
-# 硬件引脚 —— 2026-10-24 换板：立创·天空星 LC-ESP32S3
-# 主控 ESP32-S3R8N8（8MB Flash + 8MB Octal PSRAM），引脚与 lc-esp32s3 配置一致
+# 硬件引脚 —— 主控立创·天空星 LC-ESP32S3（ESP32-S3R8N8，8MB Flash + 8MB Octal PSRAM）
 # OLED: SCL=GPIO42 SDA=GPIO41 | INMP441: SCK=GPIO16 WS=GPIO17 SD=GPIO18
 # MAX98357A: DIN=GPIO38 BCLK=GPIO39 LRC=GPIO40
-# TMC2209: EN=GPIO7 STEP=GPIO9 DIR=GPIO10 | 红LED=GPIO1 绿LED=GPIO2 打卡按键=GPIO5
+# TMC2209: EN=GPIO8 STEP=GPIO9 DIR=GPIO10 | 红LED=GPIO1 绿LED=GPIO2 打卡按键=GPIO5
 # ============================================================
 esp32:
   variant: esp32s3

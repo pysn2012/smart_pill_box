@@ -1,8 +1,6 @@
 ---
 # ============================================================
 # ESP32-S3 语音助手 + 智能药盒（按时吃药打卡）
-# 吃药模式：编译后无需改配置，在 Home Assistant 设备页
-#           用"吃药模式"选择器切换 日模式 / 周模式
 # ============================================================
 
 substitutions:
@@ -25,9 +23,7 @@ substitutions:
   # ---- 药盒参数 ----
   # 药盒格数（圆形药盒 8 格）
   med_slots: "8"
-  # 每格步数：42 步进电机 1.8°/步，圆形药盒 8 格 → 每格 45°
-  # 2026-10-24 实测修正：TMC2209 驱动细分实际为 1/16
-  #   → 3200 步/圈 → 每格 3200/8 = 400 步
+  # 每格步数：42 步进电机（1.8°/步），TMC2209 细分 1/16 → 3200 步/圈 → 每格 400 步
   # 公式：med_steps_per_slot = (200 × 细分) / 8（细分变了改这里）
   med_steps_per_slot: "400"
   # 打卡后绿灯 + OLED"已吃药"的显示时长，之后关闭所有提醒
@@ -40,7 +36,7 @@ substitutions:
   med_media_player_entity: "media_player.pill_box_a07efc"
 
   # ---- 步进电机回差补偿 ----
-  # 2026-10-24 用户实测后要求取消补偿，恢复标准 45°/格；保留参数备用（0 = 不补偿）
+  # 保留参数备用，0 = 不补偿
   med_slot_offset_steps: "0"
 
   # ---- 吃药提醒有效期（分钟）----
@@ -84,7 +80,6 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   # 关闭省电模式：省电模式会让射频周期性休眠，音频流式传输时产生突发延迟，
-  # 本设备为市电供电，用不上的省电换稳定
   power_save_mode: none
   ap:
     ssid: "pillbox-ap-Setup"
@@ -104,14 +99,6 @@ interval:
   - interval: 5s
     then:
       - script.execute: draw_display
-
-# 设备自带页面：浏览器打开 http://<设备IP> 即可设置吃药时间/次数/时间段
-# ⚠️ 调试语音助手时必须注释掉：web_server 与语音流式传输抢 RAM/CPU，
-#    会导致 HA 在 STT 阶段断开 API 连接（日志两次失败均复现）。
-#    吃药时间/次数/模式等实体在 HA 设备页同样可以设置，功能不受影响。
-#    若后续确认问题解决后想恢复，取消注释即可（如语音复发则保持关闭）。
-#web_server:
-#  port: 80
 
 packages:
   hardware: !include packages/hardware.yaml

@@ -1,22 +1,21 @@
 # ============================================================
 # 吃药打卡 - 公共模块（模式选择 / LED / 打卡按键 / 步进电机 / 状态脚本）
-# 与 mode-day.yaml 和 mode-week.yaml 搭配使用（两个都启用，
-# 在 HA 设备页用"吃药模式"选择器切换）
+# 与 mode-day.yaml / mode-week.yaml 搭配使用，在 HA 设备页用"吃药模式"切换
+#
+# 格位约定：
+#   - 12点钟位置 = 0位（空/基准），顺时针为格1~格7；第N剂 → 格N
+#   - 开机/装配时把 0 位对准取药口；断电重启后需重新对位
 #
 # 逻辑约定：
-#   - 格子编号从 0 开始（0~7），对外显示为"第1格~第8格"
-#   - 到点 → 红灯 + OLED"该吃药了" + 电机转到对应格
-#   - 没打卡就一直提醒，红灯不灭，直到打卡为止（已无"时间段"概念）
-#   - 按键打卡 → 红灯灭、绿灯亮、OLED"已吃药"，${med_green_time} 后全部关闭
-#   - 是否吃药以按键打卡为准；跨天自动清空当天打卡记录
+#   - 到点 → 红灯 + OLED"该吃药了" + 电机转到对应格；未打卡不撤提醒（超期除外）
+#   - 按键打卡 → 绿灯 + OLED"已吃药"，${med_green_time} 后关闭
+#   - 归位：周模式每次打卡后转回0位，日模式最后一剂打卡后归位0
+#   - 跨天自动清空打卡记录并归位
 #
-# ★ "关闭"约定：
-#   - 吃药时间为 00:00（0 分）= 关闭；"每日吃药次数" 为 0 = 未设置
-#   - 两者都默认关闭，所以烧录/重启后不会立刻进入吃药状态
-#   - "清空吃药设置"按钮 = 把所有时间/次数一键复位为关闭
+# 关闭约定：吃药时间 00:00 = 关闭，"每日吃药次数" 0 = 未设置（默认不提醒）
 # ============================================================
 
-# 红灯：到点提醒 / 绿灯：已吃药（2026-10-24 换板 LC-ESP32S3：红=GPIO1 绿=GPIO2）
+# 红灯：到点提醒 / 绿灯：已吃药
 output:
   - platform: gpio
     id: med_red
@@ -26,18 +25,15 @@ output:
     pin: GPIO2
 
 # 步进电机（TMC2209 STEP/DIR 接法，兼容 a4988 平台）
-# 2026-10-24 换板（LC-ESP32S3）：EN=GPIO8 STEP=GPIO9 DIR=GPIO10
-# TMC 驱动没有 SLEEP 脚，对应的是 ENABLE 脚（低电平使能），
-# 因此 sleep_pin 需要 inverted: true；到达目标位置后驱动自动休眠（EN=高，断电）
-# 若实际转向相反，给 dir_pin 加 inverted: true
+# EN=GPIO8 STEP=GPIO9 DIR=GPIO10
+# TMC 驱动没有 SLEEP 脚，对应 ENABLE 脚（低电平使能），sleep_pin 需 inverted: true；
+# 到达目标位置后驱动自动休眠断电。若实际转向相反，给 dir_pin 加 inverted: true
 stepper:
   - platform: a4988
     id: med_stepper
     step_pin: GPIO9
-    # V16 顺时针：实测逆时针，取反 DIR 电平（2026-10-29）；若装回后又反向，删掉 inverted 即可
     dir_pin:
       number: GPIO10
-      inverted: true
     sleep_pin:
       number: GPIO8
       inverted: true
@@ -194,7 +190,7 @@ button:
       - output.turn_off: med_green
       - script.execute: med_alarm_off
 
-# 打卡按键（GPIO5，低电平按下；2026-10-24 换板 LC-ESP32S3）
+# 打卡按键（GPIO5，低电平按下）
 binary_sensor:
   - platform: gpio
     id: med_button
@@ -271,7 +267,8 @@ script:
           # med_steps_pos 仍保持标准 45°/格 累计值，补偿不随格数发散
           target: !lambda return id(med_steps_pos) + ${med_slot_offset_steps};
 
-  # 进入提醒状态：红灯 + OLED 提醒 + 电机顺时针转 1 格（相对步进）
+  # 进入提醒状态：红灯 + OLED 提醒 + 电机转到对应药格
+  # 格位约定：12点钟=0位（空），顺时针格1~格7；第N剂 → 格N（周模式：周N → 格N）
   - id: med_alarm_on
     mode: single
     then:
@@ -281,8 +278,6 @@ script:
           id(med_active_slot) = id(med_target_slot);
           auto now = id(ha_time).now();
           id(med_last_alarm_min) = now.is_valid() ? (now.hour * 60 + now.minute) : -1;
-      # V16 绝对格位（2026-10-29 定稿）：12点钟=0位（空），顺时针格1~格7
-      # 第N剂 → 格N（周模式：周N → 格N，周四=格4=6点钟）
       - script.execute:
           id: med_go_to_slot
           target_slot: !lambda return id(med_active_slot) + 1;
@@ -354,8 +349,8 @@ script:
             - delay: ${med_green_time}
             - output.turn_off: med_green
             - lambda: id(med_show_taken) = false;
-            # V16 吃药结束归位：周模式每次打卡后回0位；
-            # 日模式最后一剂打卡后回0位（未吃完/未到最后一剂时停在当前格）
+            # 吃药结束归位：周模式每次打卡后回0位；
+            # 日模式最后一剂打卡后回0位（未到最后一剂时停在当前格）
             - if:
                 condition:
                   lambda: |-

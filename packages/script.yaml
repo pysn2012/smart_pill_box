@@ -5,8 +5,7 @@ script:
     then:
       - if:
           condition:
-            # OLED 初始化失败（I2C 扫不到屏）时直接跳过绘制：
-            # 对已 FAILED 的 display 调 show_page()/update() 会踩空帧缓冲（StoreProhibited, EXCVADDR 0）
+            # OLED 初始化失败（I2C 扫不到屏）时直接跳过绘制，避免操作失效的 display 崩溃
             lambda: return !id(init_in_progress) && !id(oled128).is_failed();
           then:
             - if:
