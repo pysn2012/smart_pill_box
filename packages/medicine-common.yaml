@@ -27,13 +27,14 @@ output:
 # 步进电机（TMC2209 STEP/DIR 接法，兼容 a4988 平台）
 # EN=GPIO8 STEP=GPIO9 DIR=GPIO10
 # TMC 驱动没有 SLEEP 脚，对应 ENABLE 脚（低电平使能），sleep_pin 需 inverted: true；
-# 到达目标位置后驱动自动休眠断电。若实际转向相反，给 dir_pin 加 inverted: true
+# 到达目标位置后驱动自动休眠断电。dir_pin 加 inverted: true 使转向为顺时针（官方文档做法）
 stepper:
   - platform: a4988
     id: med_stepper
     step_pin: GPIO9
     dir_pin:
       number: GPIO10
+      inverted: true
     sleep_pin:
       number: GPIO8
       inverted: true
@@ -144,6 +145,23 @@ button:
     on_press:
       - lambda: id(med_target_slot) = 0;
       - script.execute: med_alarm_on
+
+  # 【临时诊断】转向测试：第1次按=前进800步，第2次按=后退800步，交替。
+  # 两次物理转向应该相反（一次顺一次逆）：
+  #   - 若两次转向相同 → DIR 信号没到驱动板，查 GPIO10→TMC2209 DIR 接线
+  #   - 若两次转向相反 → DIR 通道正常，切 inverted: true 即可换向
+  # 测完请重启设备（本测试不经过 med_steps_pos 位置镜像，会失步）
+  - platform: template
+    name: 转向测试
+    icon: mdi:debug-step-over
+    on_press:
+      - stepper.set_target:
+          id: med_stepper
+          target: !lambda |-
+            static bool forward = true;
+            int32_t t = id(med_stepper).current_position + (forward ? 800 : -800);
+            forward = !forward;
+            return t;
 
   - platform: template
     name: 清空吃药设置
