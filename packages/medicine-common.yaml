@@ -152,7 +152,7 @@ button:
   #   - 若两次转向相反 → DIR 通道正常，切 inverted: true 即可换向
   # 测完请重启设备（本测试不经过 med_steps_pos 位置镜像，会失步）
   - platform: template
-    name: 转向测试
+    name: 转向测试 Test
     icon: mdi:debug-step-over
     on_press:
       - stepper.set_target:
